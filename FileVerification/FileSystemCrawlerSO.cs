@@ -106,7 +106,7 @@ namespace FileVerification
                 {
                     if (!fileHashInfo.IsEqual(file.FullName))
                     {
-                        Console.WriteLine($"Hash mismatch: {file.FullName}.");
+                        Logger.WriteLine($"Hash mismatch: {file.FullName}.");
                     }
                 }
                 else

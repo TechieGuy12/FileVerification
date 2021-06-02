@@ -38,6 +38,8 @@ namespace FileVerification
 
         public static void WriteLine(string message)
         {
+            Console.WriteLine(message);
+
             try
             {
                 using (StreamWriter writer = new StreamWriter(fullPath, true))
