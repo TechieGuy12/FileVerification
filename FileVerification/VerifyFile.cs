@@ -85,6 +85,11 @@ namespace FileVerification
                     {
                         string line = reader.ReadLine();
                         string[] values = line.Split(',');
+                        if (values.Length != Enum.GetNames(typeof(VerifyFileLayout)).Length)
+                        {
+                            Logger.WriteLine($"WARNING: Record size incorrect (record will be created using the current file data). File: {FilePath}, Record: {line}.");
+                            continue;
+                        }
                         HashInfo info = new HashInfo(values[(int)VerifyFileLayout.HASH_ALGORITHM], values[(int)VerifyFileLayout.HASH]);
                         files.Add(values[(int)VerifyFileLayout.NAME], info);
                     }
