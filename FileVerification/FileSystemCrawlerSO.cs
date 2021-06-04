@@ -96,7 +96,14 @@ namespace FileVerification
 
             foreach (var file in files)
             {
+                // Ignore the verification file
                 if (file.Name.Equals(VERIFY_FILE_NAME))
+                {
+                    continue;
+                }
+
+                // Ignore system files
+                if (file.Attributes == FileAttributes.System)
                 {
                     continue;
                 }
