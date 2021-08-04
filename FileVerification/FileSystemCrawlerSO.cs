@@ -38,8 +38,8 @@ namespace TE.FileVerification
             processorCount = Environment.ProcessorCount;
             threadCount = processorCount - 1;
 
-            Logger.WriteLine($"Processors:    {processorCount}.");
-            Logger.WriteLine($"Threads:       {threadCount}.");
+            Logger.WriteLine($"Processors:    {processorCount}");
+            Logger.WriteLine($"Threads:       {threadCount}");
         }
 
         public void CollectFolders(string path)
