@@ -4,7 +4,7 @@ using System.Text;
 using System.Security.Cryptography;
 using System.IO;
 
-namespace FileVerification
+namespace TE.FileVerification
 {
     public enum Algorithm
     {
@@ -16,6 +16,9 @@ namespace FileVerification
 
     public class HashInfo
     {
+        // A megabyte
+        private const int Megabyte = 1024 * 1024;
+
         public Algorithm Algorithm { get; set; }
 
         public string Value { get; set; }
@@ -32,7 +35,7 @@ namespace FileVerification
                 throw new ArgumentNullException(nameof(hash));
             }
 
-            Algorithm = GetHash(algorithm);
+            Algorithm = GetAlgorithm(algorithm);
             Value = hash;
         }
 
@@ -48,8 +51,8 @@ namespace FileVerification
                 throw new ArgumentNullException(nameof(algorithm));
             }
 
-            Algorithm = GetHash(algorithm);
-            Value = CreateFileHash(file.FullName);
+            Algorithm = GetAlgorithm(algorithm);
+            Value = CreateFileHash(file);
         }
 
         public HashInfo(FileInfo file, Algorithm algorithm)
@@ -60,19 +63,19 @@ namespace FileVerification
             }
 
             Algorithm = algorithm;
-            Value = CreateFileHash(file.FullName);
+            Value = CreateFileHash(file);
         }
 
         /// <summary>
-        /// Gets the hash enumeration value of the hash string name.
+        /// Gets the hash algorithm value of the algorithm string name.
         /// </summary>
         /// <param name="hash">
-        /// The name of the hash.
+        /// The name of the algorithm.
         /// </param>
         /// <returns>
-        /// The enum value of the hash.
+        /// The enum value of the algorithm.
         /// </returns>
-        private Algorithm GetHash(string hash)
+        private Algorithm GetAlgorithm(string hash)
         {
             if (string.Compare(hash, "sha256", true) == 0)
             {
@@ -84,11 +87,15 @@ namespace FileVerification
             }
         }
 
-        private string CreateFileHash(string filePath)
+        private string CreateFileHash(FileInfo file)
         {
-            using (var hashAlgorithm = HashAlgorithm.Create(this.Algorithm.ToString()))
+            //long size = file.Length;
+            int maxSize = 16 * Megabyte;
+            //int buffer = (int)((size <= maxSize) ? size : 16 * Megabyte);
+
+            using (var hashAlgorithm = HashAlgorithm.Create(Algorithm.ToString()))
             {
-                using (var stream = File.OpenRead(filePath))
+                using (var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, maxSize))
                 {
                     var hash = hashAlgorithm.ComputeHash(stream);
                     return BitConverter.ToString(hash).Replace("-", "");
@@ -111,15 +118,35 @@ namespace FileVerification
         /// The hash algorithm used will be the same one that is set for this
         /// object.
         /// </remarks>
-        public bool IsEqual(string filePath)
-        {
-            if (filePath == null || string.IsNullOrWhiteSpace(filePath))
-            {
-                return false;
-            }
+        //public bool IsEqual2(string filePath)
+        //{
+        //    if (filePath == null || string.IsNullOrWhiteSpace(filePath))
+        //    {
+        //        return false;
+        //    }
 
-            string fileHash = CreateFileHash(filePath);
-            return Value.Equals(fileHash);
+        //    string fileHash = CreateFileHash(filePath);
+        //    return Value.Equals(fileHash);
+        //}
+
+        /// <summary>
+        /// Checks to see if the hash of a specific file is equal to this hash
+        /// value.
+        /// </summary>
+        /// <param name="filePath">
+        /// The path to the file that will be used to generate the hash to
+        /// compare to this hash.
+        /// </param>
+        /// <returns>
+        /// True if the hashes are equal, false if the hashes are not equal.
+        /// </returns>
+        /// <remarks>
+        /// The hash algorithm used will be the same one that is set for this
+        /// object.
+        /// </remarks>
+        public bool IsHashEqual(string hash)
+        {
+            return Value.Equals(hash);
         }
     }
 }

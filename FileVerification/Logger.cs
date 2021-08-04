@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace FileVerification
+namespace TE.FileVerification
 {
     static class Logger
     {
@@ -13,6 +13,20 @@ namespace FileVerification
         // Full path to the log file
         static string fullPath;
 
+        // The lines that have been logged
+        static StringBuilder _lines;
+
+        /// <summary>
+        /// Gets the lines that have been logged.
+        /// </summary>
+        public static string Lines
+        {
+            get
+            {
+                return _lines != null ? _lines.ToString() : null;
+            }
+        }
+
         static Logger()
         {
             Initialize(Path.GetTempPath(), DEFAULT_NAME);
@@ -20,7 +34,7 @@ namespace FileVerification
 
         private static void Initialize(string logFolder, string logName)
         {
-            fullPath = Path.Combine(logFolder, logName);
+            fullPath = Path.Combine(logFolder, logName);            
             Clear();
         }
 
@@ -29,6 +43,14 @@ namespace FileVerification
             try
             {
                 File.Delete(fullPath);
+                if (_lines != null)
+                {
+                    _lines.Clear();
+                }
+                else
+                {
+                    _lines = new StringBuilder();
+                }
             }
             catch (Exception)
             {
@@ -38,6 +60,7 @@ namespace FileVerification
 
         public static void WriteLine(string message)
         {
+
             Console.WriteLine(message);
 
             try
@@ -46,6 +69,8 @@ namespace FileVerification
                 {
                     writer.WriteLine(message);
                 }
+
+                _lines.AppendLine(message);
             }
             catch (Exception ex)
             {

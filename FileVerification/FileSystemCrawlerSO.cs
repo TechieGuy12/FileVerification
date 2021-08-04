@@ -5,8 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-
-namespace FileVerification
+namespace TE.FileVerification
 {
     enum VerifyFileLayout
     {
@@ -25,10 +24,23 @@ namespace FileVerification
 
         public string FolderPath { get; set; }
 
+        private int processorCount;
+
+        private int threadCount;
+        
         private List<DirectoryInfo> directories = new List<DirectoryInfo>();
 
         private readonly ConcurrentBag<Task> tasks = new ConcurrentBag<Task>();
-        private readonly ConcurrentBag<Task> fileTasks = new ConcurrentBag<Task>();
+        //private readonly ConcurrentBag<Task> fileTasks = new ConcurrentBag<Task>();
+
+        public FileSystemCrawlerSO()
+        {
+            processorCount = Environment.ProcessorCount;
+            threadCount = processorCount - 1;
+
+            Logger.WriteLine($"Processors:    {processorCount}.");
+            Logger.WriteLine($"Threads:       {threadCount}.");
+        }
 
         public void CollectFolders(string path)
         {
@@ -45,18 +57,11 @@ namespace FileVerification
         }
 
         public void CollectFiles()
-        {            
+        {  
             foreach (var dir in directories)
-            {                
-                fileTasks.Add(Task.Run(() => GetFiles(dir)));
-            }
-
-            Task taskToWaitFor;
-            while (fileTasks.TryTake(out taskToWaitFor))
             {
-                taskToWaitFor.Wait();
+                GetFiles(dir);
             }
-
         }
 
         private void CrawlFolder(DirectoryInfo dir)
@@ -88,44 +93,51 @@ namespace FileVerification
             // returns null, indicating an exception, and the verify file file
             // exists, then assume there is an issue and don't continue with
             // the hashing and verification
-            Dictionary<string, HashInfo> filesData = verifyFile.Read();
-            if (filesData == null && verifyFile.Exists())
+            Dictionary<string, HashInfo> verifyFileData = verifyFile.Read();
+            if (verifyFileData == null && verifyFile.Exists())
             {
                 return;
             }
 
-            foreach (var file in files)
+            ConcurrentDictionary<string, HashInfo> folderFileData = new ConcurrentDictionary<string, HashInfo>();
+            
+            ParallelOptions options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = threadCount;
+            Parallel.ForEach(files, options, file =>
             {
-                // Ignore the verification file
-                if (file.Name.Equals(VERIFY_FILE_NAME))
+                // Ignore the verification file and system files
+                if (file.Name.Equals(VERIFY_FILE_NAME) || file.Attributes == FileAttributes.System)
                 {
-                    continue;
+                    return;
                 }
 
-                // Ignore system files
-                if (file.Attributes == FileAttributes.System)
-                {
-                    continue;
-                }
-
+                folderFileData.TryAdd(file.Name, new HashInfo(file, Algorithm.SHA256));
                 NumFiles++;
-                if (filesData.TryGetValue(file.Name, out HashInfo fileHashInfo))
+            });
+
+            int count = 0;
+            foreach (var file in folderFileData)
+            {
+                if (verifyFileData.TryGetValue(file.Key, out HashInfo hashInfo))
                 {
-                    if (!fileHashInfo.IsEqual(file.FullName))
+                    if (!hashInfo.IsHashEqual(file.Value.Value))
                     {
-                        Logger.WriteLine($"Hash mismatch: {file.FullName}.");
+                        Logger.WriteLine($"Hash mismatch: {dir.FullName}{Path.DirectorySeparatorChar}{file.Key}.");
+                        count++;
                     }
                 }
                 else
                 {
-                    filesData.Add(file.Name, new HashInfo(file, Algorithm.SHA256));
+                    verifyFileData.Add(file.Key, file.Value);
                 }
             }
 
-            if (filesData.Count > 0)
+            if (verifyFileData.Count > 0)
             {
-                verifyFile.Write(filesData, dir);
+                verifyFile.Write(verifyFileData, dir);
             }
-        }        
+
+            Logger.WriteLine($"Number failed: {count}");
+        }
     }
 }
