@@ -86,6 +86,8 @@ namespace TE.FileVerification
 
         private void GetFiles(DirectoryInfo dir)
         {
+            Logger.WriteLine($"Subfolder:     {dir.FullName}");
+
             FileInfo[] files = dir.GetFiles();
             VerifyFile verifyFile = new VerifyFile(VERIFY_FILE_NAME, dir);
 
@@ -122,7 +124,7 @@ namespace TE.FileVerification
                 {
                     if (!hashInfo.IsHashEqual(file.Value.Value))
                     {
-                        Logger.WriteLine($"Hash mismatch: {dir.FullName}{Path.DirectorySeparatorChar}{file.Key}.");
+                        Logger.WriteLine($"Hash mismatch: {dir.FullName}{Path.DirectorySeparatorChar}{file.Key}");
                         count++;
                     }
                 }
