@@ -85,9 +85,7 @@ namespace TE.FileVerification
         }
 
         private void GetFiles(DirectoryInfo dir)
-        {
-            Logger.WriteLine($"Subfolder:     {dir.FullName}");
-
+        {            
             FileInfo[] files = dir.GetFiles();
             VerifyFile verifyFile = new VerifyFile(VERIFY_FILE_NAME, dir);
 
@@ -139,7 +137,10 @@ namespace TE.FileVerification
                 verifyFile.Write(verifyFileData, dir);
             }
 
-            Logger.WriteLine($"Number failed: {count}");
+            if (count > 0)
+            {
+                Logger.WriteLine($"Number failed: {count}");
+            }
         }
     }
 }
