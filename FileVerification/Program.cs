@@ -187,9 +187,18 @@ namespace TE.FileVerification
             
             Logger.WriteLine("--------------------------------------------------------------------------------");
 
+            bool isFile = FileSystemCrawlerSO.IsFile(folder);
+
+            string filePath = null;
+            if (isFile)
+            {
+                filePath = folder;
+                folder = Path.GetDirectoryName(folder);
+            }
+
             watch.Start();
-            fsc.CollectFolders(folder);
-            fsc.CollectFiles();
+            fsc.CollectFolders(folder, !isFile);
+            fsc.CollectFiles(filePath);
             watch.Stop();            
 
             Logger.WriteLine("--------------------------------------------------------------------------------");

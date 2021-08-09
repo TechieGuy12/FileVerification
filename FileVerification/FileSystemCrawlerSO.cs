@@ -42,11 +42,11 @@ namespace TE.FileVerification
             Logger.WriteLine($"Threads:       {threadCount}");
         }
 
-        public void CollectFolders(string path)
+        public void CollectFolders(string path, bool includeSubDir)
         {
             FolderPath = path;
             DirectoryInfo directoryInfo = new DirectoryInfo(path);
-            tasks.Add(Task.Run(() => CrawlFolder(directoryInfo)));
+            tasks.Add(Task.Run(() => CrawlFolder(directoryInfo, includeSubDir)));
 
             Task taskToWaitFor;
             while (tasks.TryTake(out taskToWaitFor))
@@ -56,26 +56,43 @@ namespace TE.FileVerification
             }
         }
 
-        public void CollectFiles()
+        public void CollectFiles(string filePath)
         {  
             foreach (var dir in directories)
             {
-                GetFiles(dir);
+                GetFiles(dir, filePath);
             }
         }
 
-        private void CrawlFolder(DirectoryInfo dir)
+        /// <summary>
+        /// Returns a value indicating the path is a valid file.
+        /// </summary>
+        /// <param name="path">
+        /// The path to the file.
+        /// </param>
+        /// <returns>
+        /// <c>true</c> if the path is a valid file, othersize <c>false</c>.
+        /// </returns>
+        public static bool IsFile(string path)
+        {
+            return File.Exists(path);
+        }
+
+        private void CrawlFolder(DirectoryInfo dir, bool includeSubDir)
         {
             try
             {
-                DirectoryInfo[] directoryInfos = dir.GetDirectories();
-                foreach (DirectoryInfo childInfo in directoryInfos)
+                if (includeSubDir)
                 {
-                    // here may be dragons using enumeration variable as closure!!
-                    DirectoryInfo di = childInfo;
-                    tasks.Add(Task.Run(() => CrawlFolder(di)));
+                    DirectoryInfo[] directoryInfos = dir.GetDirectories();
+                    foreach (DirectoryInfo childInfo in directoryInfos)
+                    {
+                        // here may be dragons using enumeration variable as closure!!
+                        DirectoryInfo di = childInfo;
+                        tasks.Add(Task.Run(() => CrawlFolder(di)));
+                    }
                 }
-                directories.Add(dir);                
+                directories.Add(dir);
             }
             catch (Exception ex)
                 when (ex is DirectoryNotFoundException || ex is System.Security.SecurityException || ex is UnauthorizedAccessException)
@@ -84,9 +101,23 @@ namespace TE.FileVerification
             }
         }
 
-        private void GetFiles(DirectoryInfo dir)
-        {            
-            FileInfo[] files = dir.GetFiles();
+        private void CrawlFolder(DirectoryInfo dir)
+        {
+            CrawlFolder(dir, true);
+        }
+
+        private void GetFiles(DirectoryInfo dir, string filePath)        
+        {
+            FileInfo[] files;
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                files = dir.GetFiles();
+            }
+            else
+            {
+                files = new FileInfo[] { new FileInfo(filePath) };
+            }
+
             VerifyFile verifyFile = new VerifyFile(VERIFY_FILE_NAME, dir);
 
             // Read the verify file, if it exists, but if the read method
