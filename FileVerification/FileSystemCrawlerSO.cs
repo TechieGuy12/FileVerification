@@ -142,8 +142,22 @@ namespace TE.FileVerification
                     return;
                 }
 
-                folderFileData.TryAdd(file.Name, new HashInfo(file, Algorithm.SHA256));
-                NumFiles++;
+                try
+                {
+                    HashInfo hashInfo = new HashInfo(file, Algorithm.SHA256);
+                    if (hashInfo.Value != null)
+                    {
+                        folderFileData.TryAdd(file.Name, new HashInfo(file, Algorithm.SHA256));
+                    }
+                    NumFiles++;
+                }
+                catch (AggregateException ae)
+                {
+                    foreach (Exception ex in ae.InnerExceptions)
+                    {
+                        Console.WriteLine($"ERROR: {ex.Message}");
+                    }
+                }
             });
 
             int count = 0;

@@ -95,10 +95,17 @@ namespace TE.FileVerification
 
             using (var hashAlgorithm = HashAlgorithm.Create(Algorithm.ToString()))
             {
-                using (var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, maxSize))
+                try
                 {
-                    var hash = hashAlgorithm.ComputeHash(stream);
-                    return BitConverter.ToString(hash).Replace("-", "");
+                    using (var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, maxSize))
+                    {
+                        var hash = hashAlgorithm.ComputeHash(stream);
+                        return BitConverter.ToString(hash).Replace("-", "");
+                    }
+                }
+                catch
+                {
+                    return null;
                 }
             }
         }
