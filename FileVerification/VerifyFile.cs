@@ -7,6 +7,7 @@ namespace TE.FileVerification
 {
     public class VerifyFile
     {
+        private const char Separator = '|';
         private string fileName;
 
         private DirectoryInfo directory;
@@ -84,7 +85,7 @@ namespace TE.FileVerification
                     while (!reader.EndOfStream)
                     {
                         string line = reader.ReadLine();
-                        string[] values = line.Split(',');
+                        string[] values = line.Split(Separator);
                         if (values.Length != Enum.GetNames(typeof(VerifyFileLayout)).Length)
                         {
                             Logger.WriteLine($"WARNING: Record size incorrect (record will be created using the current file data). File: {FilePath}, Record: {line}.");
@@ -134,7 +135,7 @@ namespace TE.FileVerification
             foreach (KeyValuePair<string, HashInfo> file in files)
             {
                 HashInfo hashInfo = file.Value;
-                sb.AppendLine($"{file.Key},{hashInfo.Algorithm.ToString().ToLower()},{hashInfo.Value}");
+                sb.AppendLine($"{file.Key}{Separator}{hashInfo.Algorithm.ToString().ToLower()}{Separator}{hashInfo.Value}");
             }
 
             try
