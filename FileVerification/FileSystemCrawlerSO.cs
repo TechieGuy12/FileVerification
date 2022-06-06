@@ -16,30 +16,40 @@ namespace TE.FileVerification
 
     public class FileSystemCrawlerSO
     {
-        const string VERIFY_FILE_NAME = "__fv.txt";
+        const string DEFAULT_VERIFY_FILE_NAME = "__fv.txt";
 
         public int NumFolders { get; set; }
 
         public int NumFiles { get; set; }
 
+        public HashAlgorithm Algorithm { get; set; }
+
         public string FolderPath { get; set; }
 
-        private int processorCount;
+        private readonly int processorCount;
 
-        private int threadCount;
+        private readonly int threadCount;
         
-        private List<DirectoryInfo> directories = new List<DirectoryInfo>();
+        private readonly List<DirectoryInfo> directories = new List<DirectoryInfo>();
 
         private readonly ConcurrentBag<Task> tasks = new ConcurrentBag<Task>();
-        //private readonly ConcurrentBag<Task> fileTasks = new ConcurrentBag<Task>();
 
-        public FileSystemCrawlerSO()
+        public FileSystemCrawlerSO(HashAlgorithm? algorithm)
         {
             processorCount = Environment.ProcessorCount;
             threadCount = processorCount - 1;
 
             Logger.WriteLine($"Processors:    {processorCount}");
             Logger.WriteLine($"Threads:       {threadCount}");
+
+            if (algorithm != null)
+            {
+                Algorithm = (HashAlgorithm)algorithm;
+            }
+            else
+            {
+                Algorithm = HashAlgorithm.SHA256;
+            }
         }
 
         public void CollectFolders(string path, bool includeSubDir)
@@ -48,11 +58,13 @@ namespace TE.FileVerification
             DirectoryInfo directoryInfo = new DirectoryInfo(path);
             tasks.Add(Task.Run(() => CrawlFolder(directoryInfo, includeSubDir)));
 
-            Task taskToWaitFor;
-            while (tasks.TryTake(out taskToWaitFor))
+            while (tasks.TryTake(out Task? taskToWaitFor))
             {
-                NumFolders++;
-                taskToWaitFor.Wait();
+                if (taskToWaitFor != null)
+                {
+                    NumFolders++;
+                    taskToWaitFor.Wait();
+                }
             }
         }
 
@@ -112,44 +124,45 @@ namespace TE.FileVerification
             if (string.IsNullOrWhiteSpace(filePath))
             {
                 files = dir.GetFiles();
+                NumFiles += files.Length;
             }
             else
             {
                 files = new FileInfo[] { new FileInfo(filePath) };
             }
 
-            VerifyFile verifyFile = new VerifyFile(VERIFY_FILE_NAME, dir);
+            //VerifyFile verifyFile = new VerifyFile(DEFAULT_VERIFY_FILE_NAME, dir);
 
-            // Read the verify file, if it exists, but if the read method
-            // returns null, indicating an exception, and the verify file file
-            // exists, then assume there is an issue and don't continue with
-            // the hashing and verification
-            Dictionary<string, HashInfo> verifyFileData = verifyFile.Read();
-            if (verifyFileData == null && verifyFile.Exists())
-            {
-                return;
-            }
+            //// Read the verify file, if it exists, but if the read method
+            //// returns null, indicating an exception, and the verify file file
+            //// exists, then assume there is an issue and don't continue with
+            //// the hashing and verification
+            //Dictionary<string, HashInfo>? verifyFileData = verifyFile.Read();
+            //if (verifyFileData == null && verifyFile.Exists())
+            //{
+            //    return;
+            //}
 
             ConcurrentDictionary<string, HashInfo> folderFileData = new ConcurrentDictionary<string, HashInfo>();
-            
+
             ParallelOptions options = new ParallelOptions();
             options.MaxDegreeOfParallelism = threadCount;
             Parallel.ForEach(files, options, file =>
             {
-                // Ignore the verification file and system files
-                if (file.Name.Equals(VERIFY_FILE_NAME) || file.Attributes == FileAttributes.System)
-                {
-                    return;
-                }
+                //    // Ignore the verification file and system files
+                //    if (file.Name.Equals(DEFAULT_VERIFY_FILE_NAME) || file.Attributes == FileAttributes.System)
+                //    {
+                //        return;
+                //    }
 
                 try
                 {
-                    HashInfo hashInfo = new HashInfo(file, Algorithm.SHA256);
-                    if (hashInfo.Value != null)
+                    HashInfo hashInfo = new HashInfo(file.FullName, HashAlgorithm.SHA256);
+                    if (hashInfo.Hash != null)
                     {
-                        folderFileData.TryAdd(file.Name, new HashInfo(file, Algorithm.SHA256));
+                        folderFileData.TryAdd(file.Name, new HashInfo(file.FullName, HashAlgorithm.SHA256));
                     }
-                    NumFiles++;
+                    //NumFiles++;
                 }
                 catch (AggregateException ae)
                 {
@@ -160,32 +173,32 @@ namespace TE.FileVerification
                 }
             });
 
-            int count = 0;
-            foreach (var file in folderFileData)
-            {
-                if (verifyFileData.TryGetValue(file.Key, out HashInfo hashInfo))
-                {
-                    if (!hashInfo.IsHashEqual(file.Value.Value))
-                    {
-                        Logger.WriteLine($"Hash mismatch: {dir.FullName}{Path.DirectorySeparatorChar}{file.Key}");
-                        count++;
-                    }
-                }
-                else
-                {
-                    verifyFileData.Add(file.Key, file.Value);
-                }
-            }
+            //int count = 0;
+            //foreach (var file in folderFileData)
+            //{
+            //    if (verifyFileData.TryGetValue(file.Key, out HashInfo? hashInfo))
+            //    {
+            //        if (!hashInfo.IsHashEqual(file.Value.Hash))
+            //        {
+            //            Logger.WriteLine($"Hash mismatch: {dir.FullName}{Path.DirectorySeparatorChar}{file.Key}");
+            //            count++;
+            //        }
+            //    }
+            //    else
+            //    {
+            //        verifyFileData.Add(file.Key, file.Value);
+            //    }
+            //}
 
-            if (verifyFileData.Count > 0)
-            {
-                verifyFile.Write(verifyFileData, dir);
-            }
+            //if (verifyFileData.Count > 0)
+            //{
+            //    verifyFile.Write(verifyFileData, dir);
+            //}
 
-            if (count > 0)
-            {
-                Logger.WriteLine($"Number failed: {count}");
-            }
+            //if (count > 0)
+            //{
+            //    Logger.WriteLine($"Number failed: {count}");
+            //}
         }
     }
 }

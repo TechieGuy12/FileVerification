@@ -1,12 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using TE.FileVerification.Configuration;
-using System.Xml.Serialization;
-using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace TE.FileVerification
 {
@@ -18,9 +16,6 @@ namespace TE.FileVerification
         // Error return code
         private const int ERROR = -1;
 
-        // The default configuration file name
-        const string DEFAULT_SETTINGS_FILE = "config.xml";
-
         public static int NumFolders { get; set; }
 
         static int Main(string[] args)
@@ -28,188 +23,136 @@ namespace TE.FileVerification
             RootCommand rootCommand = new RootCommand(
                 description: "Generates the hash of all files in a folder tree and stores the hashes in text files in each folder.");
 
-            var folderOption = new Option<string>(
-                    aliases: new string[] { "--folder", "-f" },
-                    description: "The folder containing the files to verify with a hash."
-                );
+            var fileOption = new Option<string>(
+                    aliases: new string[] { "--file", "-f" },
+                    description: "The file or folder to verify with a hash."
+            );
+            fileOption.IsRequired = true;
+            rootCommand.AddOption(fileOption);
 
-            folderOption.IsRequired = true;
-            rootCommand.AddOption(folderOption);
+            var algorithmOption = new Option<HashAlgorithm>(
+                    aliases: new string[] { "--algorithm", "-a" },
+                    description: "The hash algorithm to use."
+            );
+            rootCommand.AddOption(algorithmOption);
 
             var settingsFileOption = new Option<string>(
                     aliases: new string[] { "--settingsFile", "-sfi" },
                     description: "The name of the settings XML file."
-                );
+            );
             rootCommand.AddOption(settingsFileOption);
 
-            var setingsFolderOption = new Option<string>(
+            var settingsFolderOption = new Option<string>(
                     aliases: new string[] { "--settingsFolder", "-sfo" },
                     description: "The folder containing the settings XML file."
-                );
-            rootCommand.AddOption(setingsFolderOption);
+            );
+            rootCommand.AddOption(settingsFolderOption);
 
-            rootCommand.Handler = CommandHandler.Create<string, string, string>(Verify);
+            rootCommand.SetHandler((fileOptionValue, algorithmOptionValue, settingsFileOptionValue, settingsFolderOptionValue) =>
+            {
+                Run(fileOptionValue, algorithmOptionValue, settingsFileOptionValue, settingsFolderOptionValue);
+            },
+            fileOption, algorithmOption, settingsFileOption, settingsFolderOption);
             return rootCommand.Invoke(args);
         }
 
         /// <summary>
-        /// Gets the folder path containing the settings file.
+        /// Runs the necessary hashing for the file or folder.
         /// </summary>
-        /// <param name="path">
-        /// The folder path.
-        /// </param>
-        /// <returns>
-        /// The folder path of the files, otherwise null.
-        /// </returns>
-        private static string GetFolderPath(string path)
+        /// <param name="file"></param>
+        /// <param name="algorithm"></param>
+        /// <param name="settingsFile"></param>
+        /// <param name="settingsFolder"></param>
+        /// <returns></returns>
+        static int Run(string? file, HashAlgorithm? algorithm, string? settingsFile, string? settingsFolder)
         {
-            if (string.IsNullOrWhiteSpace(path))
+            if (string.IsNullOrWhiteSpace(file))
             {
-                try
-                {                    
-                    path = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"The folder name is null or empty. Couldn't get the current location. Reason: {ex.Message}");
-                    return null;
-                }
-            }
-
-            if (Directory.Exists(path))
-            {
-                return path;
-            }
-            else
-            {
-                Console.WriteLine("The folder does not exist.");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Gets the full path to the settings file.
-        /// </summary>
-        /// <param name="path">
-        /// The path to the settings file.
-        /// </param>
-        /// <param name="name">
-        /// The name of the settings file.
-        /// </param>
-        /// <returns>
-        /// The full path to the settings file, otherwise null.
-        /// </returns>
-        private static string GetSettingsFilePath(string path, string name)
-        {
-            string folderPath = GetFolderPath(path);
-            if (folderPath == null)
-            {
-                return null;
-            }
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                name = DEFAULT_SETTINGS_FILE;
-            }
-
-            try
-            {
-                string fullPath = Path.Combine(folderPath, name);
-                if (File.Exists(fullPath))
-                {
-                    Console.WriteLine($"Settings file: {fullPath}.");
-                    return fullPath;
-                }
-                else
-                {
-                    Console.WriteLine($"The settings file '{fullPath}' was not found.");
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Could not get the path to the settings file. Reason: {ex.Message}");
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Reads the settings XML file.
-        /// </summary>
-        /// <param name="path">
-        /// The path to the settings XML file.
-        /// </param>
-        /// <returns>
-        /// A <see cref="Settings"/> object if the file was read successfully, otherwise null.
-        /// </returns>
-        private static Settings ReadSettingsFile(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                Console.WriteLine("The settings file path was null or empty.");
-                return null;
-            }
-
-            if (!File.Exists(path))
-            {
-                Console.WriteLine($"The settings file path '{path}' does not exist.");
-                return null;
-            }
-
-            try
-            {
-                XmlSerializer serializer = new XmlSerializer(typeof(Settings));
-                using FileStream fs = new FileStream(path, FileMode.Open);
-                return (Settings)serializer.Deserialize(fs);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"The settings file could not be read. Reason: {ex.Message}");
-                return null;
-            }
-        }
-
-        static int Verify(string folder, string settingsFile, string settingsFolder)
-        {
-            string settingsFilePath = GetSettingsFilePath(settingsFolder, settingsFile);
-            if (string.IsNullOrWhiteSpace(settingsFilePath))
-            {
+                Logger.WriteLine("The file or folder was not specified.");
                 return ERROR;
             }
 
-            Settings settings = ReadSettingsFile(settingsFilePath);
-
-            Logger.WriteLine("--------------------------------------------------------------------------------");
-            Logger.WriteLine($"Folder:        {folder}");
-
-            FileSystemCrawlerSO fsc = new FileSystemCrawlerSO();
-            Stopwatch watch = new Stopwatch();
-            
-            Logger.WriteLine("--------------------------------------------------------------------------------");
-
-            bool isFile = FileSystemCrawlerSO.IsFile(folder);
-
-            string filePath = null;
-            if (isFile)
+            if (algorithm == null)
             {
-                filePath = folder;
-                folder = Path.GetDirectoryName(folder);
+                algorithm = HashAlgorithm.SHA256;
             }
 
+            // Read the settings file if one was provided as an argument
+            Settings? settings = null;
+            if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
+            {
+                ISettingsFile xmlFile = new XmlFile(settingsFolder, settingsFile);
+                settings = xmlFile.Read();
+            }
+
+            Logger.WriteLine("--------------------------------------------------------------------------------");
+            Logger.WriteLine($"Folder:        {file}");
+            Logger.WriteLine("--------------------------------------------------------------------------------");
+
+            PathInfo path = new PathInfo(file);
+            Stopwatch watch = new Stopwatch();
             watch.Start();
-            fsc.CollectFolders(folder, !isFile);
+            path.Crawl(true, "__fv.txt");
+            //List<string>? checksumFiles = path.CrawlCheckSumFiles(true, "__fv.txt");
+
+            List<HashInfo> hashInfoList = new List<HashInfo>();
+            if (path.Files != null)
+            {
+                int fileCount = 0;
+                foreach (string fileValue in path.Files)
+                {
+                    HashInfo hashInfo = new HashInfo(fileValue, (HashAlgorithm)algorithm);
+                    hashInfoList.Add(hashInfo);
+                    fileCount++;
+                }
+
+                int checksumFilesCount = 0;
+                if (path.ChecksumFiles != null)
+                {
+                    path.Check();
+                }
+                watch.Stop();
+
+                Logger.WriteLine("--------------------------------------------------------------------------------");
+                //Logger.WriteLine($"Folders:       {fsc.NumFolders}");
+                Logger.WriteLine($"Files:         {fileCount}");
+                Logger.WriteLine($"Checksum Files:{checksumFilesCount}");                
+                Logger.WriteLine($"Time (ms):     {watch.ElapsedMilliseconds}");
+                Logger.WriteLine("--------------------------------------------------------------------------------");
+            }
+
+            FileSystemCrawlerSO fsc = new FileSystemCrawlerSO(algorithm);
+            bool isFile = FileSystemCrawlerSO.IsFile(file);
+
+            string? filePath = null;
+            if (isFile)
+            {
+                filePath = file;
+                file = Path.GetDirectoryName(file);
+
+                if (string.IsNullOrWhiteSpace(file))
+                {
+                    Logger.WriteLine("The file or folder was not specified.");
+                    return ERROR;
+                }
+            }
+
+            watch.Reset();
+            watch.Start();
+            fsc.CollectFolders(file, !isFile);
             fsc.CollectFiles(filePath);
-            watch.Stop();            
+            watch.Stop();
 
             Logger.WriteLine("--------------------------------------------------------------------------------");
             Logger.WriteLine($"Folders:       {fsc.NumFolders}");
             Logger.WriteLine($"Files:         {fsc.NumFiles}");
-            Logger.WriteLine($"Time (ms):     { watch.ElapsedMilliseconds}");
+            Logger.WriteLine($"Time (ms):     {watch.ElapsedMilliseconds}");
             Logger.WriteLine("--------------------------------------------------------------------------------");
 
-            if (settings.Notifications != null)
-            {                
-                settings.Notifications.Send(Logger.Lines);
+            // If settings were specified, then send the notifications
+            if (settings != null)
+            {
+                settings.Send();
             }
 
             return SUCCESS;

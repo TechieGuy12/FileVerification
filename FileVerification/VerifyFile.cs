@@ -69,9 +69,10 @@ namespace TE.FileVerification
         /// objects with the file name as the key. a value of <c>null</c> is
         /// returned if there is an issue reading the file.
         /// </returns>
-        public Dictionary<string, HashInfo> Read()
+        public Dictionary<string, HashInfo>? Read()
         {
-            Dictionary<string, HashInfo> files = new Dictionary<string, HashInfo>();
+            Dictionary<string, HashInfo> files = 
+                new Dictionary<string, HashInfo>();
 
             if (string.IsNullOrWhiteSpace(FilePath) || !File.Exists(FilePath))
             {
@@ -81,19 +82,29 @@ namespace TE.FileVerification
             try
             {
                 using (var reader = new StreamReader(FilePath))
+
+                while (!reader.EndOfStream)
                 {
-                    while (!reader.EndOfStream)
+                    string? line = reader.ReadLine();
+                    if (line == null)
                     {
-                        string line = reader.ReadLine();
-                        string[] values = line.Split(Separator);
-                        if (values.Length != Enum.GetNames(typeof(VerifyFileLayout)).Length)
-                        {
-                            Logger.WriteLine($"WARNING: Record size incorrect (record will be created using the current file data). File: {FilePath}, Record: {line}.");
-                            continue;
-                        }
-                        HashInfo info = new HashInfo(values[(int)VerifyFileLayout.HASH_ALGORITHM], values[(int)VerifyFileLayout.HASH]);
-                        files.Add(values[(int)VerifyFileLayout.NAME], info);
+                        continue;
                     }
+
+                    string[] values = line.Split(Separator);
+                    if (values.Length != Enum.GetNames(typeof(VerifyFileLayout)).Length)
+                    {
+                        Logger.WriteLine($"WARNING: Record size incorrect (record will be created using the current file data). File: {FilePath}, Record: {line}.");
+                        continue;
+                    }
+
+                    Path.Combine(this.directory.FullName, fileName);
+                    HashInfo info = 
+                        new HashInfo(
+                            values[(int)VerifyFileLayout.HASH_ALGORITHM],
+                            values[(int)VerifyFileLayout.HASH]);
+
+                    files.Add(values[(int)VerifyFileLayout.NAME], info);
                 }
 
                 return files;
@@ -135,7 +146,7 @@ namespace TE.FileVerification
             foreach (KeyValuePair<string, HashInfo> file in files)
             {
                 HashInfo hashInfo = file.Value;
-                sb.AppendLine($"{file.Key}{Separator}{hashInfo.Algorithm.ToString().ToLower()}{Separator}{hashInfo.Value}");
+                sb.AppendLine($"{file.Key}{Separator}{hashInfo.Algorithm.ToString().ToLower()}{Separator}{hashInfo.Hash}");
             }
 
             try
