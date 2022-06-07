@@ -92,62 +92,19 @@ namespace TE.FileVerification
             PathInfo path = new PathInfo(file);
             Stopwatch watch = new Stopwatch();
             watch.Start();
-            path.Crawl(true, "__fv.txt");
-            //List<string>? checksumFiles = path.CrawlCheckSumFiles(true, "__fv.txt");
-
-            List<HashInfo> hashInfoList = new List<HashInfo>();
+            path.Crawl(true);
             if (path.Files != null)
             {
-                int fileCount = 0;
-                foreach (string fileValue in path.Files)
-                {
-                    HashInfo hashInfo = new HashInfo(fileValue, (HashAlgorithm)algorithm);
-                    hashInfoList.Add(hashInfo);
-                    fileCount++;
-                }
-
-                int checksumFilesCount = 0;
-                if (path.ChecksumFiles != null)
-                {
-                    path.Check();
-                }
+                path.Check();
                 watch.Stop();
 
                 Logger.WriteLine("--------------------------------------------------------------------------------");
-                //Logger.WriteLine($"Folders:       {fsc.NumFolders}");
-                Logger.WriteLine($"Files:         {fileCount}");
-                Logger.WriteLine($"Checksum Files:{checksumFilesCount}");                
-                Logger.WriteLine($"Time (ms):     {watch.ElapsedMilliseconds}");
+                Logger.WriteLine($"Folders:         {path.DirectoryCount}");
+                Logger.WriteLine($"Files:           {path.FileCount}");
+                //Logger.WriteLine($"Checksum Files: {checksumFilesCount}");                
+                Logger.WriteLine($"Time (ms):       {watch.ElapsedMilliseconds}");
                 Logger.WriteLine("--------------------------------------------------------------------------------");
             }
-
-            FileSystemCrawlerSO fsc = new FileSystemCrawlerSO(algorithm);
-            bool isFile = FileSystemCrawlerSO.IsFile(file);
-
-            string? filePath = null;
-            if (isFile)
-            {
-                filePath = file;
-                file = Path.GetDirectoryName(file);
-
-                if (string.IsNullOrWhiteSpace(file))
-                {
-                    Logger.WriteLine("The file or folder was not specified.");
-                    return ERROR;
-                }
-            }
-
-            watch.Reset();
-            watch.Start();
-            fsc.CollectFolders(file, !isFile);
-            fsc.CollectFiles(filePath);
-            watch.Stop();
-
-            Logger.WriteLine("--------------------------------------------------------------------------------");
-            Logger.WriteLine($"Folders:       {fsc.NumFolders}");
-            Logger.WriteLine($"Files:         {fsc.NumFiles}");
-            Logger.WriteLine($"Time (ms):     {watch.ElapsedMilliseconds}");
-            Logger.WriteLine("--------------------------------------------------------------------------------");
 
             // If settings were specified, then send the notifications
             if (settings != null)

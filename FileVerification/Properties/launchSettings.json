@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FileVerification": {
+      "commandName": "Project",
+      "commandLineArgs": "fv -f C:\\TEMP3"
+    }
+  }
+}

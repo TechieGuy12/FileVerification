@@ -9,7 +9,7 @@ namespace TE.FileVerification
     public enum HashAlgorithm
     {
         MD5,
-        SHA,
+        SHA1,
         SHA256,
         SHA512
     }
@@ -29,10 +29,31 @@ namespace TE.FileVerification
         public string? Hash { get; private set; }
 
         /// <summary>
-        /// Gets the information about the file.
+        /// Gets the full path to the file.
         /// </summary>
         public string FilePath { get; private set; }
 
+        /// <summary>
+        /// Gets the name of the file.
+        /// </summary>
+        public string FileName 
+        { 
+            get
+            {
+                return Path.GetFileName(FilePath);
+            }
+        }
+
+        /// <summary>
+        /// Initializes an instance of the <see cref="HashInfo"/> class when
+        /// provided with the full path to the file.
+        /// </summary>
+        /// <param name="filePath">
+        /// The full path, including the directory, to the file.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// The <paramref name="filePath"/> parameter is null or empty.
+        /// </exception>
         private HashInfo(string filePath)
         {
             if (filePath == null || string.IsNullOrWhiteSpace(filePath))
@@ -43,6 +64,24 @@ namespace TE.FileVerification
             FilePath = filePath;
         }
 
+        /// <summary>
+        /// Initializes an instance of the <see cref="HashInfo"/> class when
+        /// provided with the full path to the file, the string representation
+        /// of the hash algorithm and the file hash.
+        /// </summary>
+        /// <param name="filePath">
+        /// The full path, including the directory, to the file.
+        /// </param>
+        /// <param name="algorithm">
+        /// The string representation of the hash algorithm used to create
+        /// the hash.
+        /// </param>
+        /// <param name="hash">
+        /// The hash value of the file.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// A parameter is null or empty.
+        /// </exception>
         public HashInfo(string filePath, string algorithm, string hash)
             : this(filePath, algorithm)        
         {
@@ -54,6 +93,20 @@ namespace TE.FileVerification
             Hash = hash;
         }
 
+        /// <summary>
+        /// Initializes an instance of the <see cref="HashInfo"/> class when
+        /// provided with the full path to the file, and the string
+        /// representation of the hash algorithm.
+        /// </summary>
+        /// <param name="filePath">
+        /// The full path, including the directory, to the file.
+        /// </param>
+        /// <param name="algorithm">
+        /// The string representation of the hash algorithm.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// A parameter is null or empty.
+        /// </exception>
         public HashInfo(string filePath, string algorithm) 
             : this(filePath)
         {           
@@ -63,14 +116,27 @@ namespace TE.FileVerification
             }
 
             Algorithm = GetAlgorithm(algorithm);
-            Hash = GetFileHash();
+            Hash = GetFileHash(FilePath, Algorithm);
         }
 
+        /// <summary>
+        /// Initializes an instance of the <see cref="HashInfo"/> class when
+        /// provided with the full path to the file, and the hash algorithm.
+        /// </summary>
+        /// <param name="filePath">
+        /// The full path, including the directory, to the file.
+        /// </param>
+        /// <param name="algorithm">
+        /// The hash algorithm.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// A parameter is null or empty.
+        /// </exception>
         public HashInfo(string filePath, HashAlgorithm algorithm) 
             : this(filePath)
         {
             Algorithm = algorithm;
-            Hash = GetFileHash();
+            Hash = GetFileHash(FilePath, Algorithm);
         }
 
         /// <summary>
@@ -83,44 +149,100 @@ namespace TE.FileVerification
         /// The enum value of the algorithm.
         /// </returns>
         private static HashAlgorithm GetAlgorithm(string hash)
-        {
-            if (string.Compare(hash, "sha256", true) == 0)
+        {            
+            if (string.Compare(hash, "md5", true) == 0)
             {
-                return HashAlgorithm.SHA256;
+                return HashAlgorithm.MD5;
             }
-            else
+            else if (string.Compare(hash, "sha1", true) == 0)
+            {
+                return HashAlgorithm.SHA1;
+            }
+            else if (string.Compare(hash, "sha512", true) == 0)
             {
                 return HashAlgorithm.SHA512;
             }
+            else
+            {
+                return HashAlgorithm.SHA256;
+            }
         }
 
-        private string? GetFileHash()
+        /// <summary>
+        /// Gets the hash of the file for the specified hash algorithm.
+        /// </summary>
+        /// <param name="file">
+        /// The full path, including directory, of the file.
+        /// </param>        
+        /// <param name="algorithm">
+        /// The algorithm used to generate the hash.
+        /// </param>
+        /// <returns>
+        /// The hash of the file, or <c>null</c> if the hash could not be
+        /// generated.
+        /// </returns>
+        public static string? GetFileHash(string file, HashAlgorithm algorithm)
         {
-            int maxSize = 16 * Megabyte;
-
-            using Cryptography.HashAlgorithm? hashAlgorithm =
-                Cryptography.HashAlgorithm.Create(Algorithm.ToString());
-            if (hashAlgorithm == null)
+            if (string.IsNullOrWhiteSpace(file))
             {
                 return null;
             }
+
+            int maxSize = 16 * Megabyte;
+
+            Cryptography.HashAlgorithm? hashAlgorithm = null;
 
             try
             {
-                using var stream = 
-                    new FileStream(
-                        FilePath,
-                        FileMode.Open,
-                        FileAccess.Read,
-                        FileShare.Read,
-                        maxSize);
 
-                var hash = hashAlgorithm.ComputeHash(stream);
-                return BitConverter.ToString(hash).Replace("-", "");
+                switch (algorithm)
+                {
+                    case HashAlgorithm.MD5:
+                        hashAlgorithm = Cryptography.MD5.Create();
+                        break;
+                    case HashAlgorithm.SHA1:
+                        hashAlgorithm = Cryptography.SHA1.Create();
+                        break;
+                    case HashAlgorithm.SHA256:
+                        hashAlgorithm = Cryptography.SHA256.Create();
+                        break;
+                    case HashAlgorithm.SHA512:
+                        hashAlgorithm = Cryptography.SHA512.Create();
+                        break;
+                }
+
+                if (hashAlgorithm == null)
+                {
+                    Logger.WriteLine($"Couldn't create hash. Reason: Hash was not provided.");
+                    return null;
+                }
+
+                try
+                {
+                    using var stream =
+                        new FileStream(
+                            file,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.Read,
+                            maxSize);
+
+                    var hash = hashAlgorithm.ComputeHash(stream);
+                    return BitConverter.ToString(hash).Replace("-", "");
+                }
+                catch
+                {
+
+                    return null;
+                }
             }
-            catch
+            finally
             {
-                return null;
+                if (hashAlgorithm != null)
+                {
+                    hashAlgorithm.Clear();
+                    hashAlgorithm.Dispose();
+                }
             }
         }
         

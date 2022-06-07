@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,36 +14,107 @@ namespace TE.FileVerification
     /// </summary>
     public class PathInfo
     {
+        private readonly string? _directory;
+
+        private readonly string? _checksumFileName;
+
+        private readonly ConcurrentBag<Task> _tasks = new ConcurrentBag<Task>();
+
+        // private readonly List<DirectoryInfo> directories = new List<DirectoryInfo>();
+
         /// <summary>
         /// Gets the path value.
         /// </summary>
-        public string Path { get; private set; }
-
-        public Queue<string>? Files { get; private set; }
-
-        public List<ChecksumFile>? ChecksumFiles { get; private set; }
+        public string FullPath { get; private set; }
 
         /// <summary>
-        /// Initializes an instance of the <see cref="Path"/> class when
+        /// Gets all the files in the path.
+        /// </summary>
+        public Queue<string>? Files { get; private set; }
+
+        /// <summary>
+        /// Gets the number of files.
+        /// </summary>
+        public int FileCount
+        {
+            get
+            {
+                return Files != null ? Files.Count : 0;
+            }
+        }
+
+        /// <summary>
+        /// Gets the number of directories.
+        /// </summary>
+        public int DirectoryCount { get; private set; }
+
+        /// <summary>
+        /// Gets all the checksum files in the path.
+        /// </summary>
+        public List<ChecksumFile>? ChecksumFileInfo { get; private set; }
+
+        /// <summary>
+        /// Initializes an instance of the <see cref="PathInfo"/> class when
         /// provided with the full path.
         /// </summary>
         /// <param name="path">
-        /// The full path.
+        /// The full path to a directory or a file.
         /// </param>
         /// <exception cref="ArgumentNullException">
-        /// Thrown if the <paramref name="path"/> argument is <c>null</c> or empty.
+        /// Thrown if the <paramref name="path"/> parameter is <c>null</c> or
+        /// empty.
         /// </exception>
-        internal PathInfo(string path)
+        public PathInfo(string path)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
             {
                 throw new ArgumentNullException(path);
             }
 
-            Path = path;
+            FullPath = path;
+
+            // Check to see if the full path points to a file rather than a
+            // directory, and if it does, then extract and store the directory
+            // name
+            if (IsFile())
+            {
+                _directory = Path.GetDirectoryName(FullPath);
+                if (string.IsNullOrWhiteSpace(_directory))
+                {
+                    throw new InvalidOperationException("The directory for the path could not be determined.");
+                }
+            }
+            else
+            {
+                _directory = FullPath;
+            }
+
+            _checksumFileName = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
         }
 
-        public void Crawl(bool includeSubDir, string checksumFileName)
+        /// <summary>
+        /// Initializes an instance of the <see cref="PathInfo"/> class when
+        /// provided with the full path and the checksum file name.
+        /// </summary>
+        /// <param name="path">
+        /// The full path to a directory or a file.
+        /// </param>
+        /// <param name="checksumFileName">
+        /// The name of the checksum file.
+        /// </param>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown if a paramter is <c>null</c> or empty.
+        /// </exception>
+        public PathInfo(string path, string checksumFileName)
+            : this(path)
+        {
+            if (!string.IsNullOrWhiteSpace(checksumFileName))
+            {
+                _checksumFileName = checksumFileName;
+            }
+        }
+
+        public void Crawl(bool includeSubDir)
         {
             
             // If the path does not exist, then just return null
@@ -56,52 +128,89 @@ namespace TE.FileVerification
             if (IsFile())
             {
                 Files = new Queue<string>();
-                Files.Enqueue(Path);
+                Files.Enqueue(FullPath);
                 return;
             }
 
-            Files = new Queue<string>(CrawlDirectory(includeSubDir));
-            
-            if (ChecksumFiles == null)
+            CrawlDirectory(includeSubDir);
+
+            if (ChecksumFileInfo == null)
             {
-                ChecksumFiles = new List<ChecksumFile>();
+                ChecksumFileInfo = new List<ChecksumFile>();
             }
 
-            foreach (string file in GetChecksumFiles(checksumFileName, includeSubDir))
+            foreach (string file in GetChecksumFiles(includeSubDir))
             {
-                ChecksumFiles.Add(new ChecksumFile(file));
+                ChecksumFileInfo.Add(new ChecksumFile(file));
             }
         }
 
-        //public List<string>? CrawlCheckSumFiles(bool includeSubDir, string checksumFileName)
-        //{
-        //    // If the path does not exist, then just return null
-        //    if (!Exists())
-        //    {
-        //        return null;
-        //    }
-
-        //    return new List<string>(GetChecksumFiles(checksumFileName, includeSubDir));
-        //}
-
         public void Check()
         {
-            if (Files == null || ChecksumFiles == null)
+            if (Files == null || ChecksumFileInfo == null)
             {
                 return;
             }
 
-            foreach (string file in Files)
-            {
-                ChecksumFile? checksumFile = ChecksumFiles.FirstOrDefault(c => c.Checksums.ContainsKey(file));
+            ParallelOptions options = new ParallelOptions();
+            options.MaxDegreeOfParallelism = Environment.ProcessorCount;
+            Parallel.ForEach(Files, options, file =>
+            //foreach (string file in Files)
+            {                
+                if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
+                {
+                    return;
+                }
+
+                // Find the checksum file that contains the file
+                ChecksumFile? checksumFile =
+                    ChecksumFileInfo.FirstOrDefault(
+                        c => c.Checksums.ContainsKey(file));
 
                 // A checksum file was found containing the file, so get the
                 // hash information for the file
                 if (checksumFile != null)
                 {
-                    HashInfo? hashInfo = checksumFile.GetFileData(file);
+                    // Check if the current file matches the hash information
+                    // stored in the checksum file
+                    if (!checksumFile.IsMatch(file))
+                    {
+                        Logger.WriteLine($"FAIL: Hash mismatch: {file}.");
+                    }
+                }
+                else
+                {
+                    // Get the file directory so it can be used to find the
+                    // checksum file for the directory
+                    string? fileDir = Path.GetDirectoryName(file);
+                    if (string.IsNullOrWhiteSpace(fileDir))
+                    {
+                        Logger.WriteLine($"Could not get the directory from '{file}'.");
+                        return;
+                    }
+
+                    // Find the checksum file for the directory
+                    checksumFile =
+                        ChecksumFileInfo.FirstOrDefault(
+                            c => c.Directory.Equals(fileDir));
+                    if (checksumFile == null)
+                    {
+                        // If no checksum file was located in the directory,
+                        // create a new checksum file and then add it to the
+                        // list
+                        checksumFile = new ChecksumFile(Path.Combine(fileDir, ChecksumFile.DEFAULT_CHECKSUM_FILENAME));
+                        ChecksumFileInfo.Add(checksumFile);
+                    }
+
+                    // Add the file to the checksum file
+                    checksumFile.Add(file);
 
                 }
+            });
+
+            foreach(ChecksumFile checksum in ChecksumFileInfo)
+            {
+                checksum.Write();
             }
         }
 
@@ -113,7 +222,7 @@ namespace TE.FileVerification
         /// </returns>
         public bool IsDirectory()
         {
-            return Directory.Exists(Path);
+            return Directory.Exists(FullPath);
         }
 
         /// <summary>
@@ -124,7 +233,7 @@ namespace TE.FileVerification
         /// </returns>
         public bool IsFile()
         {
-            return File.Exists(Path);
+            return File.Exists(FullPath);
         }
 
         /// <summary>
@@ -147,9 +256,15 @@ namespace TE.FileVerification
         /// <returns>
         /// Returns an enumerable collection of file paths.
         /// </returns>
-        private IEnumerable<string> CrawlDirectory(bool includeSubDir)
+        private IEnumerable<string> CrawlDirectory2(bool includeSubDir)
         {
-            DirectoryInfo dirInfo = new DirectoryInfo(Path);
+            if (string.IsNullOrWhiteSpace(_directory))
+            {
+                yield break;
+            }
+
+            DirectoryInfo dirInfo = new DirectoryInfo(_directory);
+
             IEnumerable<FileInfo> files = 
                 dirInfo.EnumerateFiles("*", GetSearchOption(includeSubDir));
 
@@ -157,42 +272,91 @@ namespace TE.FileVerification
             {
                 yield return file.FullName;
             }
+            
         }
 
-        //private void CrawlDirectory2(bool includeSubDir)
-        //{
-        //    try
-        //    {
-                
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine($"{ex.GetType()} {ex.Message}\n{ex.StackTrace}");
-        //    }
-        //}
-
-        //private void CrawlDirectory2(bool includeSubDir, DirectoryInfo dirInfo)
-        //{
-        //    try
-        //    {
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Console.WriteLine($"{ex.GetType()} {ex.Message}\n{ex.StackTrace}");
-        //    }
-        //}
-
-        private IEnumerable<string> GetChecksumFiles(string checksumFileName, bool includeSubDir)
+        /// <summary>
+        /// Crawls the path and returns the files.
+        /// </summary>
+        /// <param name="includeSubDir">
+        /// Value indicating if the subdirectories are to be crawled.
+        /// </param>
+        /// <returns>
+        /// Returns an enumerable collection of file paths.
+        /// </returns>
+        private void CrawlDirectory(bool includeSubDir)
         {
-            if (string.IsNullOrWhiteSpace(checksumFileName))
+            if (string.IsNullOrWhiteSpace(_directory))
+            {
+                return; ;
+            }
+
+            DirectoryInfo directoryInfo = new DirectoryInfo(_directory);
+            _tasks.Add(Task.Run(() => CrawlDirectory(directoryInfo, includeSubDir)));
+
+            while (_tasks.TryTake(out Task? taskToWaitFor))
+            {
+                if (taskToWaitFor != null)
+                {
+                    DirectoryCount++;
+                    taskToWaitFor.Wait();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Crawls the path and returns the files.
+        /// </summary>
+        /// <param name="dir">
+        /// The <see cref="DirectoryInfo"/> object of the current directory.
+        /// </param>
+        /// <param name="includeSubDir">
+        /// Value indicating if the subdirectories are to be crawled.
+        /// </param>
+        /// <returns>
+        /// Returns an enumerable collection of file paths.
+        /// </returns>
+        private void CrawlDirectory(DirectoryInfo dir, bool includeSubDir)
+        {
+            try
+            {
+                if (Files == null)
+                {
+                    Files = new Queue<string>();
+                }
+
+                FileInfo[] files = dir.GetFiles();
+                foreach (FileInfo file in files)
+                {
+                    Files.Enqueue(file.FullName);
+                }
+
+                if (includeSubDir)
+                {
+                    DirectoryInfo[] directoryInfo = dir.GetDirectories();
+                    foreach (DirectoryInfo childInfo in directoryInfo)
+                    {
+                        _tasks.Add(Task.Run(() => CrawlDirectory(childInfo, includeSubDir)));
+                    }
+                }
+            }
+            catch (Exception ex)
+                when (ex is DirectoryNotFoundException || ex is System.Security.SecurityException || ex is UnauthorizedAccessException)
+            {
+                Console.WriteLine($"ERROR: {ex.Message}");
+            }
+        }
+
+        private IEnumerable<string> GetChecksumFiles(bool includeSubDir)
+        {
+            if (string.IsNullOrWhiteSpace(_checksumFileName) || string.IsNullOrWhiteSpace(_directory))
             {
                 yield break;
             }
 
-            DirectoryInfo dirInfo = new DirectoryInfo(Path);
+            DirectoryInfo dirInfo = new DirectoryInfo(_directory);
             IEnumerable<FileInfo> checksumFiles =
-                dirInfo.EnumerateFiles(checksumFileName, GetSearchOption(includeSubDir));
+                dirInfo.EnumerateFiles(_checksumFileName, GetSearchOption(includeSubDir));
 
             foreach (var checksumFile in checksumFiles)
             {
@@ -203,6 +367,21 @@ namespace TE.FileVerification
         private SearchOption GetSearchOption(bool includeSubDir)
         {
             return includeSubDir ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+        }
+
+        /// <summary>
+        /// Indicates if a file is a system file.
+        /// </summary>
+        /// <param name="file">
+        /// The full path, including the directory, of the file.
+        /// </param>
+        /// <returns>
+        /// <c>true</c> if the file is a system file, otherwise <c>false</c>.
+        /// </returns>
+        private bool IsSystemFile(string file)
+        {
+            FileAttributes attributes = File.GetAttributes(file);
+            return ((attributes & FileAttributes.System) == FileAttributes.System);
         }
     }
 }
