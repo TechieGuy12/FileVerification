@@ -20,8 +20,6 @@ namespace TE.FileVerification
 
         private readonly ConcurrentBag<Task> _tasks = new ConcurrentBag<Task>();
 
-        // private readonly List<DirectoryInfo> directories = new List<DirectoryInfo>();
-
         /// <summary>
         /// Gets the path value.
         /// </summary>
@@ -30,7 +28,7 @@ namespace TE.FileVerification
         /// <summary>
         /// Gets all the files in the path.
         /// </summary>
-        public Queue<string>? Files { get; private set; }
+        public ConcurrentQueue<string>? Files { get; private set; }
 
         /// <summary>
         /// Gets the number of files.
@@ -127,23 +125,15 @@ namespace TE.FileVerification
             // path value as there is no directory to be crawled
             if (IsFile(FullPath))
             {
-                Files = new Queue<string>();
+                Files = new ConcurrentQueue<string>();
                 Files.Enqueue(FullPath);                
             }
             else
             {
                 CrawlDirectory(includeSubDir);
             }
-            
-            if (ChecksumFileInfo == null)
-            {
-                ChecksumFileInfo = new List<ChecksumFile>();
-            }
 
-            foreach (string file in GetChecksumFiles(includeSubDir))
-            {
-                ChecksumFileInfo.Add(new ChecksumFile(file));
-            }
+            GetChecksumFiles(includeSubDir);
         }
 
         /// <summary>
@@ -290,16 +280,13 @@ namespace TE.FileVerification
         /// <param name="includeSubDir">
         /// Value indicating if the subdirectories are to be crawled.
         /// </param>
-        /// <returns>
-        /// Returns an enumerable collection of file paths.
-        /// </returns>
         private void CrawlDirectory(DirectoryInfo dir, bool includeSubDir)
         {
             try
-            {
+            {                
                 if (Files == null)
                 {
-                    Files = new Queue<string>();
+                    Files = new ConcurrentQueue<string>();
                 }
 
                 FileInfo[] files = dir.GetFiles();
@@ -330,23 +317,23 @@ namespace TE.FileVerification
         /// <param name="includeSubDir">
         /// Include subdirectories when searching for checksum files.
         /// </param>
-        /// <returns>
-        /// A <see cref="IEnumerable{T}"/> object of all the checksum files.
-        /// </returns>
-        private IEnumerable<string> GetChecksumFiles(bool includeSubDir)
+        private void GetChecksumFiles(bool includeSubDir)
         {
             if (string.IsNullOrWhiteSpace(_checksumFileName) || string.IsNullOrWhiteSpace(_directory))
             {
-                yield break;
+                return;
             }
 
-            DirectoryInfo dirInfo = new DirectoryInfo(_directory);
-            IEnumerable<FileInfo> checksumFiles =
-                dirInfo.EnumerateFiles(_checksumFileName, GetSearchOption(includeSubDir));
+            // Get all the checksums in the directory and sub-directories,
+            // if specified
+            string[] checksumFiles = Directory.GetFiles(_directory, _checksumFileName, GetSearchOption(includeSubDir));
+            ChecksumFileInfo = new List<ChecksumFile>(checksumFiles.Length);
 
-            foreach (var checksumFile in checksumFiles)
+            // Loop through each of the checksum files and add the information
+            // in the checksum list
+            foreach (string file in checksumFiles)
             {
-                yield return checksumFile.FullName;
+                ChecksumFileInfo.Add(new ChecksumFile(file));
             }
         }
 
