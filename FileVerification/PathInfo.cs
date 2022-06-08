@@ -76,7 +76,7 @@ namespace TE.FileVerification
             // Check to see if the full path points to a file rather than a
             // directory, and if it does, then extract and store the directory
             // name
-            if (IsFile())
+            if (IsFile(FullPath))
             {
                 _directory = Path.GetDirectoryName(FullPath);
                 if (string.IsNullOrWhiteSpace(_directory))
@@ -125,15 +125,16 @@ namespace TE.FileVerification
             
             // If the path is a file, then just return a string array with the
             // path value as there is no directory to be crawled
-            if (IsFile())
+            if (IsFile(FullPath))
             {
                 Files = new Queue<string>();
-                Files.Enqueue(FullPath);
-                return;
+                Files.Enqueue(FullPath);                
             }
-
-            CrawlDirectory(includeSubDir);
-
+            else
+            {
+                CrawlDirectory(includeSubDir);
+            }
+            
             if (ChecksumFileInfo == null)
             {
                 ChecksumFileInfo = new List<ChecksumFile>();
@@ -220,9 +221,9 @@ namespace TE.FileVerification
         /// <returns>
         /// <c>true</c> if the path is a valid directory, otherwise <c>false</c>.
         /// </returns>
-        public bool IsDirectory()
+        public static bool IsDirectory(string path)
         {
-            return Directory.Exists(FullPath);
+            return Directory.Exists(path);
         }
 
         /// <summary>
@@ -231,9 +232,9 @@ namespace TE.FileVerification
         /// <returns>
         /// <c>true</c> if the path is a valid file, othersize <c>false</c>.
         /// </returns>
-        public bool IsFile()
+        public static bool IsFile(string path)
         {
-            return File.Exists(FullPath);
+            return File.Exists(path);
         }
 
         /// <summary>
@@ -244,7 +245,7 @@ namespace TE.FileVerification
         /// </returns>
         public bool Exists()
         {
-            return IsDirectory() || IsFile();
+            return IsDirectory(FullPath) || IsFile(FullPath);
         }
 
         /// <summary>

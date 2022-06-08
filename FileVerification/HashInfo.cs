@@ -8,9 +8,9 @@ namespace TE.FileVerification
 {
     public enum HashAlgorithm
     {
-        MD5,
-        SHA1,
         SHA256,
+        MD5,
+        SHA1,        
         SHA512
     }
     public class HashInfo
@@ -148,17 +148,17 @@ namespace TE.FileVerification
         /// <returns>
         /// The enum value of the algorithm.
         /// </returns>
-        private static HashAlgorithm GetAlgorithm(string hash)
+        private static HashAlgorithm GetAlgorithm(string algorithm)
         {            
-            if (string.Compare(hash, "md5", true) == 0)
+            if (string.Compare(algorithm, "md5", true) == 0)
             {
                 return HashAlgorithm.MD5;
             }
-            else if (string.Compare(hash, "sha1", true) == 0)
+            else if (string.Compare(algorithm, "sha1", true) == 0)
             {
                 return HashAlgorithm.SHA1;
             }
-            else if (string.Compare(hash, "sha512", true) == 0)
+            else if (string.Compare(algorithm, "sha512", true) == 0)
             {
                 return HashAlgorithm.SHA512;
             }
@@ -193,8 +193,7 @@ namespace TE.FileVerification
             Cryptography.HashAlgorithm? hashAlgorithm = null;
 
             try
-            {
-
+            {                
                 switch (algorithm)
                 {
                     case HashAlgorithm.MD5:

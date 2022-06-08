@@ -14,7 +14,16 @@ namespace TE.FileVerification
         private const int SUCCESS = 0;
 
         // Error return code
-        private const int ERROR = -1;
+        private const int ERROR = 1;
+
+        // The path is not a file
+        private const int ERROR_NOT_FILE = 2;
+
+        // The hash could not be generated
+        private const int ERROR_NO_HASH = 3;
+
+        // The hash of the file does not match the provided hash
+        private const int ERROR_HASH_NOT_MATCH = 4;
 
         public static int NumFolders { get; set; }
 
@@ -36,6 +45,12 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(algorithmOption);
 
+            var hashOption = new Option<string>(
+                aliases: new string[] { "--hash", "-ha" },
+                description: "The hash of the file to verify."
+            );
+            rootCommand.AddOption(hashOption);
+
             var settingsFileOption = new Option<string>(
                     aliases: new string[] { "--settingsFile", "-sfi" },
                     description: "The name of the settings XML file."
@@ -48,11 +63,11 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(settingsFolderOption);
 
-            rootCommand.SetHandler((fileOptionValue, algorithmOptionValue, settingsFileOptionValue, settingsFolderOptionValue) =>
+            rootCommand.SetHandler((fileOptionValue, algorithmOptionValue, hashOption, settingsFileOptionValue, settingsFolderOptionValue) =>
             {
-                Run(fileOptionValue, algorithmOptionValue, settingsFileOptionValue, settingsFolderOptionValue);
+                Run(fileOptionValue, algorithmOptionValue, hashOption, settingsFileOptionValue, settingsFolderOptionValue);
             },
-            fileOption, algorithmOption, settingsFileOption, settingsFolderOption);
+            fileOption, algorithmOption, hashOption, settingsFileOption, settingsFolderOption);
             return rootCommand.Invoke(args);
         }
 
@@ -64,7 +79,7 @@ namespace TE.FileVerification
         /// <param name="settingsFile"></param>
         /// <param name="settingsFolder"></param>
         /// <returns></returns>
-        static int Run(string? file, HashAlgorithm? algorithm, string? settingsFile, string? settingsFolder)
+        static int Run(string? file, HashAlgorithm? algorithm, string hashOption, string? settingsFile, string? settingsFolder)
         {
             if (string.IsNullOrWhiteSpace(file))
             {
@@ -72,10 +87,7 @@ namespace TE.FileVerification
                 return ERROR;
             }
 
-            if (algorithm == null)
-            {
-                algorithm = HashAlgorithm.SHA256;
-            }
+            
 
             // Read the settings file if one was provided as an argument
             Settings? settings = null;
@@ -86,33 +98,63 @@ namespace TE.FileVerification
             }
 
             Logger.WriteLine("--------------------------------------------------------------------------------");
-            Logger.WriteLine($"Folder:        {file}");
+            Logger.WriteLine($"Folder/File:         {file}");
+            Logger.WriteLine($"Hash Algorithm:      {algorithm}");
             Logger.WriteLine("--------------------------------------------------------------------------------");
 
-            PathInfo path = new PathInfo(file);
-            Stopwatch watch = new Stopwatch();
-            watch.Start();
-            path.Crawl(true);
-            if (path.Files != null)
+            if (string.IsNullOrWhiteSpace(hashOption))
             {
-                path.Check();
-                watch.Stop();
+                PathInfo path = new PathInfo(file);
+                Stopwatch watch = new Stopwatch();
+                watch.Start();
+                path.Crawl(true);
+                if (path.Files != null)
+                {
+                    path.Check();
+                    watch.Stop();
 
-                Logger.WriteLine("--------------------------------------------------------------------------------");
-                Logger.WriteLine($"Folders:         {path.DirectoryCount}");
-                Logger.WriteLine($"Files:           {path.FileCount}");
-                //Logger.WriteLine($"Checksum Files: {checksumFilesCount}");                
-                Logger.WriteLine($"Time (ms):       {watch.ElapsedMilliseconds}");
-                Logger.WriteLine("--------------------------------------------------------------------------------");
+                    Logger.WriteLine("--------------------------------------------------------------------------------");
+                    Logger.WriteLine($"Folders:         {path.DirectoryCount}");
+                    Logger.WriteLine($"Files:           {path.FileCount}");
+                    Logger.WriteLine($"Time (ms):       {watch.ElapsedMilliseconds}");
+                    Logger.WriteLine("--------------------------------------------------------------------------------");
+                }
+
+                // If settings  gdwere specified, then send the notifications
+                if (settings != null)
+                {
+                    settings.Send();
+                }
+
+                return SUCCESS;
             }
-
-            // If settings were specified, then send the notifications
-            if (settings != null)
+            else
             {
-                settings.Send();
-            }
+                if (!PathInfo.IsFile(file))
+                {
+                    Logger.WriteLine($"The file '{file}' is not a valid file.");
+                    return ERROR_NOT_FILE;
+                }
+                
+                string? fileHash = HashInfo.GetFileHash(file, (HashAlgorithm)algorithm);
+                if (string.IsNullOrWhiteSpace(fileHash))
+                {
+                    Logger.WriteLine($"The hash for file '{file}' could not be generated.");
+                    return ERROR_NO_HASH;
+                }
 
-            return SUCCESS;
+                int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
+
+                if (returnValue == SUCCESS)
+                {
+                    Logger.WriteLine($"The file hash matches the hash '{hashOption}'");
+                }
+                else
+                {
+                    Logger.WriteLine($"The file hash '{fileHash}' does not match the hash '{hashOption}'");
+                }
+                return returnValue;
+            }
         }
     }
 }
