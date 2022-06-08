@@ -146,6 +146,11 @@ namespace TE.FileVerification
             }
         }
 
+        /// <summary>
+        /// Check the hash values of the file against the stored hashes in the
+        /// checksum files. If the file hashes aren't in the checksum files,
+        /// then add the file and its hash to the checksum files.
+        /// </summary>
         public void Check()
         {
             if (Files == null || ChecksumFileInfo == null)
@@ -156,7 +161,6 @@ namespace TE.FileVerification
             ParallelOptions options = new ParallelOptions();
             options.MaxDegreeOfParallelism = Environment.ProcessorCount;
             Parallel.ForEach(Files, options, file =>
-            //foreach (string file in Files)
             {                
                 if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
                 {
@@ -257,34 +261,6 @@ namespace TE.FileVerification
         /// <returns>
         /// Returns an enumerable collection of file paths.
         /// </returns>
-        private IEnumerable<string> CrawlDirectory2(bool includeSubDir)
-        {
-            if (string.IsNullOrWhiteSpace(_directory))
-            {
-                yield break;
-            }
-
-            DirectoryInfo dirInfo = new DirectoryInfo(_directory);
-
-            IEnumerable<FileInfo> files = 
-                dirInfo.EnumerateFiles("*", GetSearchOption(includeSubDir));
-
-            foreach (var file in files)
-            {
-                yield return file.FullName;
-            }
-            
-        }
-
-        /// <summary>
-        /// Crawls the path and returns the files.
-        /// </summary>
-        /// <param name="includeSubDir">
-        /// Value indicating if the subdirectories are to be crawled.
-        /// </param>
-        /// <returns>
-        /// Returns an enumerable collection of file paths.
-        /// </returns>
         private void CrawlDirectory(bool includeSubDir)
         {
             if (string.IsNullOrWhiteSpace(_directory))
@@ -348,6 +324,15 @@ namespace TE.FileVerification
             }
         }
 
+        /// <summary>
+        /// Gets the checksum files from each directory.
+        /// </summary>
+        /// <param name="includeSubDir">
+        /// Include subdirectories when searching for checksum files.
+        /// </param>
+        /// <returns>
+        /// A <see cref="IEnumerable{T}"/> object of all the checksum files.
+        /// </returns>
         private IEnumerable<string> GetChecksumFiles(bool includeSubDir)
         {
             if (string.IsNullOrWhiteSpace(_checksumFileName) || string.IsNullOrWhiteSpace(_directory))
@@ -365,6 +350,15 @@ namespace TE.FileVerification
             }
         }
 
+        /// <summary>
+        /// Gets the search option used to search the directories.
+        /// </summary>
+        /// <param name="includeSubDir">
+        /// Indicates if the subdirectories are to be included in the search.
+        /// </param>
+        /// <returns>
+        /// A <see cref="SearchOption"/> value.
+        /// </returns>
         private SearchOption GetSearchOption(bool includeSubDir)
         {
             return includeSubDir ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
