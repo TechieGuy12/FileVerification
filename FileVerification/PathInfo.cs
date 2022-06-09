@@ -360,7 +360,7 @@ namespace TE.FileVerification
         /// <returns>
         /// <c>true</c> if the file is a system file, otherwise <c>false</c>.
         /// </returns>
-        private bool IsSystemFile(string file)
+        private static bool IsSystemFile(string file)
         {
             FileAttributes attributes = File.GetAttributes(file);
             return ((attributes & FileAttributes.System) == FileAttributes.System);
