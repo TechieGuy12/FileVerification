@@ -134,7 +134,7 @@ namespace TE.FileVerification
                         continue;
                     }
 
-                    string fileName = values[(int)VerifyFileLayout.NAME];
+                    string fileName = values[(int)ChecksumFileLayout.NAME];
                     HashInfo info =
                         new HashInfo(
                             fileName,
