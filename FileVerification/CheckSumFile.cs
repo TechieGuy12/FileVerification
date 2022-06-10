@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -28,11 +29,6 @@ namespace TE.FileVerification
     }
     public class ChecksumFile
     {
-        /// <summary>
-        /// The separator used in the checksum file.
-        /// </summary>
-        private const char Separator = '|';
-
         /// <summary>
         /// The default checksum file name.
         /// </summary>
@@ -131,7 +127,7 @@ namespace TE.FileVerification
                         continue;
                     }
 
-                    string[] values = line.Split(Separator);
+                    string[] values = line.Split(HashInfo.Separator);
                     if (values.Length != Enum.GetNames(typeof(ChecksumFileLayout)).Length)
                     {
                         Logger.WriteLine($"WARNING: Record size incorrect (record will be created using the current file data). File: {FullPath}, Record: {line}.");
@@ -275,38 +271,39 @@ namespace TE.FileVerification
 
             // Initialize the StringBuilder object that will contain the
             // contents of the verify file
-            StringBuilder sb = new StringBuilder();
+            ConcurrentBag<string> info = new ConcurrentBag<string>();
 
             // Loop through the file checksum information and append the file
             // information to the string builder so it can be written to the
             // checksum file
-            foreach (KeyValuePair<string, HashInfo> file in Checksums)
+            Parallel.ForEach(Checksums, checksumInfo =>
             {
-                HashInfo hashInfo = file.Value;
-                sb.AppendLine($"{hashInfo.FileName}{Separator}{hashInfo.Algorithm.ToString().ToLower()}{Separator}{hashInfo.Hash}");
-            }
+                HashInfo hashInfo = checksumInfo.Value;
+                info.Add(hashInfo.ToString() + Environment.NewLine);
+            });
 
             try
             {
                 // Write the file hash information to the checksum file
                 using StreamWriter sw = new StreamWriter(FullPath);
-                sw.Write(sb.ToString());
+                sw.Write(string.Join("", info));
             }
             catch (DirectoryNotFoundException)
             {
-                Logger.WriteLine($"ERROR: The directory {Directory} was not found.");
+                Logger.WriteLine($"Could not write the checksum file because the directory {Directory} was not found.");
             }
             catch (PathTooLongException)
             {
-                Logger.WriteLine($"ERROR: The path {FullPath} is too long.");
+                Logger.WriteLine($"Could not write the checksum file because the path {FullPath} is too long.");
             }
             catch (UnauthorizedAccessException)
             {
-                Logger.WriteLine($"ERROR: Not authorized to write to {FullPath}.");
+                Logger.WriteLine($"Could not write the checksum file because the user is not authorized to write to {FullPath}.");
             }
-            catch (IOException ex)
+            catch (Exception ex)
+                when (ex is ArgumentException || ex is ArgumentNullException || ex is IOException || ex is System.Security.SecurityException)
             {
-                Logger.WriteLine($"ERROR: Can't write to file. Reason: {ex.Message}");
+                Logger.WriteLine($"Could not write the checksum file. Reason: {ex.Message}");
             }
         }
     }

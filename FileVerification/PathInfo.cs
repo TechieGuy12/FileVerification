@@ -14,11 +14,15 @@ namespace TE.FileVerification
     /// </summary>
     public class PathInfo
     {
+        // The directory associated with the path
         private readonly string? _directory;
 
+        // The name of the checksum files
         private readonly string? _checksumFileName;
 
-        private readonly ConcurrentBag<Task> _tasks = new ConcurrentBag<Task>();
+        // A queue of tasks used to crawl the directory tree
+        private readonly ConcurrentQueue<Task> _tasks = 
+            new ConcurrentQueue<Task>();
 
         /// <summary>
         /// Gets the path value.
@@ -49,7 +53,7 @@ namespace TE.FileVerification
         /// <summary>
         /// Gets all the checksum files in the path.
         /// </summary>
-        public List<ChecksumFile>? ChecksumFileInfo { get; private set; }
+        public ConcurrentDictionary<string, ChecksumFile>? ChecksumFileInfo { get; private set; }
 
         /// <summary>
         /// Initializes an instance of the <see cref="PathInfo"/> class when
@@ -62,6 +66,10 @@ namespace TE.FileVerification
         /// Thrown if the <paramref name="path"/> parameter is <c>null</c> or
         /// empty.
         /// </exception>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown if the directory of the path could not be determined.
+        /// </exception>
+        /// <exception cref=">"
         public PathInfo(string path)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
@@ -75,7 +83,7 @@ namespace TE.FileVerification
             // directory, and if it does, then extract and store the directory
             // name
             if (IsFile(FullPath))
-            {
+            {                
                 _directory = Path.GetDirectoryName(FullPath);
                 if (string.IsNullOrWhiteSpace(_directory))
                 {
@@ -112,6 +120,12 @@ namespace TE.FileVerification
             }
         }
 
+        /// <summary>
+        /// Crawl the directory associated with the path.
+        /// </summary>
+        /// <param name="includeSubDir">
+        /// Indicates if subdirectories are to be crawled.
+        /// </param>
         public void Crawl(bool includeSubDir)
         {
             
@@ -149,7 +163,7 @@ namespace TE.FileVerification
             }
 
             ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism = Environment.ProcessorCount;
+            options.MaxDegreeOfParallelism =  Environment.ProcessorCount;
             Parallel.ForEach(Files, options, file =>
             {                
                 if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
@@ -157,10 +171,19 @@ namespace TE.FileVerification
                     return;
                 }
 
-                // Find the checksum file that contains the file
-                ChecksumFile? checksumFile =
+                // Get the file directory so it can be used to find the
+                // checksum file for the directory
+                string? fileDir = Path.GetDirectoryName(file);
+                if (string.IsNullOrWhiteSpace(fileDir))
+                {
+                    Logger.WriteLine($"Could not get the directory from '{file}'.");
+                    return;
+                }
+
+                // Find the checksum file for the directory containing the file
+                ChecksumFile? checksumFile = 
                     ChecksumFileInfo.FirstOrDefault(
-                        c => c.Checksums.ContainsKey(file));
+                        c => c.Key.Equals(fileDir)).Value;
 
                 // A checksum file was found containing the file, so get the
                 // hash information for the file
@@ -175,37 +198,26 @@ namespace TE.FileVerification
                 }
                 else
                 {
-                    // Get the file directory so it can be used to find the
-                    // checksum file for the directory
-                    string? fileDir = Path.GetDirectoryName(file);
-                    if (string.IsNullOrWhiteSpace(fileDir))
-                    {
-                        Logger.WriteLine($"Could not get the directory from '{file}'.");
-                        return;
-                    }
-
-                    // Find the checksum file for the directory
-                    checksumFile =
-                        ChecksumFileInfo.FirstOrDefault(
-                            c => c.Directory.Equals(fileDir));
-                    if (checksumFile == null)
-                    {
-                        // If no checksum file was located in the directory,
-                        // create a new checksum file and then add it to the
-                        // list
-                        checksumFile = new ChecksumFile(Path.Combine(fileDir, ChecksumFile.DEFAULT_CHECKSUM_FILENAME));
-                        ChecksumFileInfo.Add(checksumFile);
-                    }
+                    // If no checksum file was located in the directory, create
+                    // a new checksum file and then add it to the list
+                    checksumFile = 
+                        new ChecksumFile
+                            (Path.Combine(
+                                fileDir, 
+                                ChecksumFile.DEFAULT_CHECKSUM_FILENAME));
 
                     // Add the file to the checksum file
                     checksumFile.Add(file);
 
+                    ChecksumFileInfo.TryAdd(fileDir, checksumFile);
+
                 }
             });
 
-            foreach(ChecksumFile checksum in ChecksumFileInfo)
+            // Write out each checksum file with the updated information
+            foreach (var keyPair in ChecksumFileInfo)
             {
-                checksum.Write();
+                keyPair.Value.Write();
             }
         }
 
@@ -258,15 +270,29 @@ namespace TE.FileVerification
                 return; ;
             }
 
+            // Get the directory information, and then enqueue the task
+            // to crawl the directory
             DirectoryInfo directoryInfo = new DirectoryInfo(_directory);
-            _tasks.Add(Task.Run(() => CrawlDirectory(directoryInfo, includeSubDir)));
+            _tasks.Enqueue(Task.Run(() => CrawlDirectory(directoryInfo, includeSubDir)));
 
-            while (_tasks.TryTake(out Task? taskToWaitFor))
+            // Preform each directory crawl task while there are still crawl
+            // tasks - waiting for each task to be completed
+            while (_tasks.TryDequeue(out Task? taskToWaitFor))
             {
                 if (taskToWaitFor != null)
                 {
                     DirectoryCount++;
-                    taskToWaitFor.Wait();
+                    try
+                    {
+                        taskToWaitFor.Wait();
+                    }
+                    catch (AggregateException ae)
+                    {
+                        foreach (var ex in ae.Flatten().InnerExceptions )
+                        {
+                            Logger.WriteLine($"A directory could not be crawled. Reason: {ex.Message}");
+                        }
+                    }
                 }
             }
         }
@@ -282,32 +308,48 @@ namespace TE.FileVerification
         /// </param>
         private void CrawlDirectory(DirectoryInfo dir, bool includeSubDir)
         {
-            try
-            {                
-                if (Files == null)
-                {
-                    Files = new ConcurrentQueue<string>();
-                }
+            // If no files have been stored, create a new queue for storing
+            // the files
+            if (Files == null)
+            {
+                Files = new ConcurrentQueue<string>();
+            }
 
-                FileInfo[] files = dir.GetFiles();
+            try
+            {
+                // Get the files and then add them to the queue for verifying
+                IEnumerable<FileInfo> files =
+                    dir.EnumerateFiles(
+                        "*",
+                        SearchOption.TopDirectoryOnly);
                 foreach (FileInfo file in files)
                 {
                     Files.Enqueue(file.FullName);
                 }
+            }
+            catch (Exception ex)
+                when (ex is ArgumentNullException || ex is ArgumentOutOfRangeException || ex is DirectoryNotFoundException || ex is System.Security.SecurityException)
+            {
+                Console.WriteLine($"Could not get files from '{dir.FullName}'. Reason: {ex.Message}");
+            }
 
+            try
+            {
                 if (includeSubDir)
                 {
-                    DirectoryInfo[] directoryInfo = dir.GetDirectories();
+                    // Enumerate all directories within the current directory
+                    // and add them to the task array so they can be crawled
+                    IEnumerable<DirectoryInfo> directoryInfo = dir.EnumerateDirectories();
                     foreach (DirectoryInfo childInfo in directoryInfo)
                     {
-                        _tasks.Add(Task.Run(() => CrawlDirectory(childInfo, includeSubDir)));
+                        _tasks.Enqueue(Task.Run(() => CrawlDirectory(childInfo, includeSubDir)));
                     }
                 }
             }
             catch (Exception ex)
-                when (ex is DirectoryNotFoundException || ex is System.Security.SecurityException || ex is UnauthorizedAccessException)
+                when (ex is DirectoryNotFoundException || ex is System.Security.SecurityException)
             {
-                Console.WriteLine($"ERROR: {ex.Message}");
+                Console.WriteLine($"Could not get subdirectories for '{dir.FullName}'. Reason: {ex.Message}");
             }
         }
 
@@ -324,16 +366,49 @@ namespace TE.FileVerification
                 return;
             }
 
-            // Get all the checksums in the directory and sub-directories,
-            // if specified
-            string[] checksumFiles = Directory.GetFiles(_directory, _checksumFileName, GetSearchOption(includeSubDir));
-            ChecksumFileInfo = new List<ChecksumFile>(checksumFiles.Length);
+            IEnumerable<string>? checksumFiles;
+
+            try
+            {
+
+                // Get all the checksums in the directory and sub-directories,
+                // if specified
+                checksumFiles =
+                    Directory.EnumerateFiles(
+                        _directory,
+                        _checksumFileName,
+                        GetSearchOption(includeSubDir));
+                ChecksumFileInfo = new ConcurrentDictionary<string, ChecksumFile>();
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine($"Could not get checksum files for directory '{_directory}'. Reason: {ex.Message}");
+                return;
+            }
 
             // Loop through each of the checksum files and add the information
             // in the checksum list
             foreach (string file in checksumFiles)
             {
-                ChecksumFileInfo.Add(new ChecksumFile(file));
+                try
+                {
+                    // Get the directory of the file as it will be used as the
+                    // key for the checksum file dictionary
+                    string? fileDir = Path.GetDirectoryName(file);
+                    if (!string.IsNullOrWhiteSpace(fileDir))
+                    {
+                        ChecksumFileInfo.TryAdd(fileDir, new ChecksumFile(file));
+                    }
+                    else
+                    {
+                        Logger.WriteLine($"Could not get directory of checksum file '{file}'.");                        
+                    }
+                }
+                catch (Exception ex)
+                    when (ex is ArgumentException || ex is PathTooLongException)
+                {
+                    Logger.WriteLine($"Could not get directory of checksum file '{file}'. Reason: {ex.Message}");
+                }
             }
         }
 
@@ -346,7 +421,7 @@ namespace TE.FileVerification
         /// <returns>
         /// A <see cref="SearchOption"/> value.
         /// </returns>
-        private SearchOption GetSearchOption(bool includeSubDir)
+        private static SearchOption GetSearchOption(bool includeSubDir)
         {
             return includeSubDir ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         }

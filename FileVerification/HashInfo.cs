@@ -15,6 +15,11 @@ namespace TE.FileVerification
     }
     public class HashInfo
     {
+        /// <summary>
+        /// The separator used in the checksum file.
+        /// </summary>
+        public const char Separator = '|';
+
         // A megabyte
         private const int Megabyte = 1024 * 1024;
 
@@ -187,8 +192,7 @@ namespace TE.FileVerification
             {
                 return null;
             }
-
-            int maxSize = 16 * Megabyte;
+            int maxSize = 64 * 1024; // Megabyte;
 
             Cryptography.HashAlgorithm? hashAlgorithm = null;
 
@@ -219,12 +223,17 @@ namespace TE.FileVerification
                 try
                 {
                     using var stream =
-                        new FileStream(
-                            file,
-                            FileMode.Open,
-                            FileAccess.Read,
-                            FileShare.Read,
-                            maxSize);
+                    //new FileStream(
+                    //    file,
+                    //    FileMode.Open,
+                    //    FileAccess.Read,
+                    //    FileShare.None);
+                    new FileStream(
+                        file,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.None,
+                        maxSize);
 
                     var hash = hashAlgorithm.ComputeHash(stream);
                     return BitConverter.ToString(hash).Replace("-", "");
@@ -268,6 +277,17 @@ namespace TE.FileVerification
             }
 
             return Hash.Equals(hash);
+        }
+
+        /// <summary>
+        /// Returns a string representing the hash information.
+        /// </summary>
+        /// <returns>
+        /// A string representation of the hash information.
+        /// </returns>
+        public override string ToString()
+        {
+            return $"{FileName}{Separator}{Algorithm.ToString().ToLower()}{Separator}{Hash}";
         }
     }
 }

@@ -5,6 +5,7 @@ using System.CommandLine.Invocation;
 using TE.FileVerification.Configuration;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System;
 
 namespace TE.FileVerification
 {
@@ -81,79 +82,90 @@ namespace TE.FileVerification
         /// <returns></returns>
         static int Run(string? file, HashAlgorithm? algorithm, string hashOption, string? settingsFile, string? settingsFolder)
         {
-            if (string.IsNullOrWhiteSpace(file))
+            try
             {
-                Logger.WriteLine("The file or folder was not specified.");
-                return ERROR;
-            }
-
-            
-
-            // Read the settings file if one was provided as an argument
-            Settings? settings = null;
-            if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
-            {
-                ISettingsFile xmlFile = new XmlFile(settingsFolder, settingsFile);
-                settings = xmlFile.Read();
-            }
-
-            Logger.WriteLine("--------------------------------------------------------------------------------");
-            Logger.WriteLine($"Folder/File:         {file}");
-            Logger.WriteLine($"Hash Algorithm:      {algorithm}");
-            Logger.WriteLine("--------------------------------------------------------------------------------");
-
-            if (string.IsNullOrWhiteSpace(hashOption))
-            {
-                PathInfo path = new PathInfo(file);
-                Stopwatch watch = new Stopwatch();
-                watch.Start();
-                path.Crawl(true);
-                if (path.Files != null)
+                if (string.IsNullOrWhiteSpace(file))
                 {
-                    path.Check();
-                    watch.Stop();
-
-                    Logger.WriteLine("--------------------------------------------------------------------------------");
-                    Logger.WriteLine($"Folders:         {path.DirectoryCount}");
-                    Logger.WriteLine($"Files:           {path.FileCount}");
-                    Logger.WriteLine($"Time (ms):       {watch.ElapsedMilliseconds}");
-                    Logger.WriteLine("--------------------------------------------------------------------------------");
+                    Logger.WriteLine("The file or folder was not specified.");
+                    return ERROR;
                 }
 
-                // If settings  gdwere specified, then send the notifications
-                if (settings != null)
+                if (algorithm == null)
                 {
-                    settings.Send();
+                    algorithm = HashAlgorithm.SHA256;
                 }
 
-                return SUCCESS;
-            }
-            else
-            {
-                if (!PathInfo.IsFile(file))
+                // Read the settings file if one was provided as an argument
+                Settings? settings = null;
+                if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
                 {
-                    Logger.WriteLine($"The file '{file}' is not a valid file.");
-                    return ERROR_NOT_FILE;
-                }
-                
-                string? fileHash = HashInfo.GetFileHash(file, (HashAlgorithm)algorithm);
-                if (string.IsNullOrWhiteSpace(fileHash))
-                {
-                    Logger.WriteLine($"The hash for file '{file}' could not be generated.");
-                    return ERROR_NO_HASH;
+                    ISettingsFile xmlFile = new XmlFile(settingsFolder, settingsFile);
+                    settings = xmlFile.Read();
                 }
 
-                int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
+                Logger.WriteLine("--------------------------------------------------------------------------------");
+                Logger.WriteLine($"Folder/File:         {file}");
+                Logger.WriteLine($"Hash Algorithm:      {algorithm}");
+                Logger.WriteLine("--------------------------------------------------------------------------------");
 
-                if (returnValue == SUCCESS)
+                if (string.IsNullOrWhiteSpace(hashOption))
                 {
-                    Logger.WriteLine($"The file hash matches the hash '{hashOption}'");
+                    PathInfo path = new PathInfo(file);
+                    Stopwatch watch = new Stopwatch();
+                    watch.Start();
+                    path.Crawl(true);
+                    if (path.Files != null)
+                    {
+                        path.Check();
+                        watch.Stop();
+
+                        Logger.WriteLine("--------------------------------------------------------------------------------");
+                        Logger.WriteLine($"Folders:         {path.DirectoryCount}");
+                        Logger.WriteLine($"Files:           {path.FileCount}");
+                        Logger.WriteLine($"Time (ms):       {watch.ElapsedMilliseconds}");
+                        Logger.WriteLine("--------------------------------------------------------------------------------");
+                    }
+
+                    // If settings  gdwere specified, then send the notifications
+                    if (settings != null)
+                    {
+                        settings.Send();
+                    }
+
+                    return SUCCESS;
                 }
                 else
                 {
-                    Logger.WriteLine($"The file hash '{fileHash}' does not match the hash '{hashOption}'");
+                    if (!PathInfo.IsFile(file))
+                    {
+                        Logger.WriteLine($"The file '{file}' is not a valid file.");
+                        return ERROR_NOT_FILE;
+                    }
+
+                    string? fileHash = HashInfo.GetFileHash(file, (HashAlgorithm)algorithm);
+                    if (string.IsNullOrWhiteSpace(fileHash))
+                    {
+                        Logger.WriteLine($"The hash for file '{file}' could not be generated.");
+                        return ERROR_NO_HASH;
+                    }
+
+                    int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
+
+                    if (returnValue == SUCCESS)
+                    {
+                        Logger.WriteLine($"The file hash matches the hash '{hashOption}'");
+                    }
+                    else
+                    {
+                        Logger.WriteLine($"The file hash '{fileHash}' does not match the hash '{hashOption}'");
+                    }
+                    return returnValue;
                 }
-                return returnValue;
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine($"An error occurred. Error: {ex.Message}");
+                return ERROR;
             }
         }
     }
