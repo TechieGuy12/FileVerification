@@ -143,8 +143,7 @@ namespace TE.FileVerification
 
                     // Get the full path to the file to use as the key to make
                     // it unique so it can be used for searching
-                    string filePath = Path.Combine(Directory, fileName);
-                    Checksums.Add(filePath, info);
+                    Checksums.Add(Path.Combine(Directory, fileName), info);
                 }
             }
             catch (UnauthorizedAccessException)
@@ -181,8 +180,7 @@ namespace TE.FileVerification
 
             try
             {
-                HashInfo hashInfo = new HashInfo(file, HashAlgorithm.SHA256);
-                Checksums.Add(file, hashInfo);
+                Checksums.Add(file, new HashInfo(file, HashAlgorithm.SHA256));
             }
             catch(ArgumentNullException ex)
             {
@@ -202,8 +200,7 @@ namespace TE.FileVerification
         /// </returns>
         public HashInfo? GetFileData(string fullPath)
         {
-            HashInfo? hashInfo;
-            Checksums.TryGetValue(fullPath, out hashInfo);
+            Checksums.TryGetValue(fullPath, out HashInfo? hashInfo);
             return hashInfo;
         }
 
@@ -278,8 +275,7 @@ namespace TE.FileVerification
             // checksum file
             Parallel.ForEach(Checksums, checksumInfo =>
             {
-                HashInfo hashInfo = checksumInfo.Value;
-                info.Add(hashInfo.ToString() + Environment.NewLine);
+                info.Add(checksumInfo.Value.ToString() + Environment.NewLine);
             });
 
             try
