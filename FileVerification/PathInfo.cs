@@ -206,11 +206,25 @@ namespace TE.FileVerification
                                 fileDir, 
                                 ChecksumFile.DEFAULT_CHECKSUM_FILENAME));
 
+                    // If the new checksum fle could not be added, then another
+                    // thread had it created at the same time, so try and grab
+                    // the other checksum file
+                    if (!ChecksumFileInfo.TryAdd(fileDir, checksumFile))
+                    {
+                        // Find the checksum file for the directory containing the file
+                        checksumFile =
+                            ChecksumFileInfo.FirstOrDefault(
+                                c => c.Key.Equals(fileDir)).Value;
+
+                        if (checksumFile == null)
+                        {
+                            Logger.WriteLine("The checksum file could not be determined. The file was not added.");
+                            return;
+                        }
+                    }
+
                     // Add the file to the checksum file
-                    checksumFile.Add(file);
-
-                    ChecksumFileInfo.TryAdd(fileDir, checksumFile);
-
+                    checksumFile.Add(file);                    
                 }
             });
 
