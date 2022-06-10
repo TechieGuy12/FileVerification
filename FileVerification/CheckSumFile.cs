@@ -225,17 +225,13 @@ namespace TE.FileVerification
                 return false;
             }
 
+            // Get the stored hash information for the file from the
+            // checksum data
+            HashInfo? hashInfo = GetFileData(file);
+
             // Check if the file is in the checksum file
-            if (Checksums.ContainsKey(file))
+            if (hashInfo != null)
             {
-                // Get the stored hash information for the file from the
-                // checksum data
-                HashInfo? hashInfo = GetFileData(file);
-                if (hashInfo == null)
-                {
-                    Logger.WriteLine($"Validating file '{file}' failed because the hash information was not found.");
-                    return false;
-                }
                 string? hash = HashInfo.GetFileHash(file, hashInfo.Algorithm);
                 if (string.IsNullOrWhiteSpace(hash))
                 {
