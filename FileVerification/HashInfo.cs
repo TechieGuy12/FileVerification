@@ -9,7 +9,7 @@ namespace TE.FileVerification
     public enum HashAlgorithm
     {
         SHA256,
-        MD5,
+        MD5,        
         SHA1,        
         SHA512
     }
@@ -20,8 +20,11 @@ namespace TE.FileVerification
         /// </summary>
         public const char Separator = '|';
 
+        // A kilobyte
+        private const int Kilobyte = 1024;
+
         // A megabyte
-        private const int Megabyte = 1024 * 1024;
+        private const int Megabyte = Kilobyte * 1024;
 
         /// <summary>
         /// Gets the hash algorithm used to create the hash of the file.
@@ -192,7 +195,9 @@ namespace TE.FileVerification
             {
                 return null;
             }
-            int maxSize = 64 * 1024; // Megabyte;
+
+            //int maxSize = 64 * Kilobyte; 
+            int maxSize = Megabyte;
 
             Cryptography.HashAlgorithm? hashAlgorithm = null;
 
