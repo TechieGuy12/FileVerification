@@ -155,15 +155,20 @@ namespace TE.FileVerification
         /// checksum files. If the file hashes aren't in the checksum files,
         /// then add the file and its hash to the checksum files.
         /// </summary>
-        public void Check()
+        /// <param name="hashAlgorithm">
+        /// The hash algorithm to use for files added to the checksum file.
+        /// Existing files will use the hash algorithm stored in the checksum
+        /// file.
+        /// </param>
+        public void Check(HashAlgorithm hashAlgorithm)
         {
             if (Files == null || ChecksumFileInfo == null)
             {
                 return;
             }
-
+            
             ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism =  Environment.ProcessorCount;
+            options.MaxDegreeOfParallelism = Environment.ProcessorCount;
             Parallel.ForEach(Files, options, file =>
             {                
                 if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
@@ -191,7 +196,7 @@ namespace TE.FileVerification
                 {
                     // Check if the current file matches the hash information
                     // stored in the checksum file
-                    if (!checksumFile.IsMatch(file))
+                    if (!checksumFile.IsMatch(file, hashAlgorithm))
                     {
                         Logger.WriteLine($"FAIL: Hash mismatch: {file}.");
                     }
@@ -224,7 +229,7 @@ namespace TE.FileVerification
                     }
 
                     // Add the file to the checksum file
-                    checksumFile.Add(file);                    
+                    checksumFile.Add(file, hashAlgorithm);                    
                 }
             });
 
@@ -338,6 +343,10 @@ namespace TE.FileVerification
                         SearchOption.TopDirectoryOnly);
                 foreach (FileInfo file in files)
                 {
+                    if (file.Name.Equals(_checksumFileName) || IsSystemFile(file.FullName))
+                    {
+                        continue;
+                    }
                     Files.Enqueue(file.FullName);
                 }
             }

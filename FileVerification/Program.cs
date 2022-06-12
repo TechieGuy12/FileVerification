@@ -116,7 +116,7 @@ namespace TE.FileVerification
                     path.Crawl(true);
                     if (path.Files != null)
                     {
-                        path.Check();
+                        path.Check((HashAlgorithm)algorithm);
                         watch.Stop();
 
                         Logger.WriteLine("--------------------------------------------------------------------------------");

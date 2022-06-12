@@ -164,7 +164,10 @@ namespace TE.FileVerification
         /// <param name="file">
         /// The full path, including the directory, of the file to add.
         /// </param>
-        public void Add(string file)
+        /// <param name="hashAlgorithm">
+        /// The hash algorithm to use for files added to the checksum file.
+        /// </param>
+        public void Add(string file, HashAlgorithm hashAlgorithm)
         {
             if (string.IsNullOrWhiteSpace(file))
             {
@@ -180,7 +183,7 @@ namespace TE.FileVerification
 
             try
             {
-                Checksums.Add(file, new HashInfo(file, HashAlgorithm.SHA256));
+                Checksums.Add(file, new HashInfo(file, hashAlgorithm));
             }
             catch(ArgumentNullException ex)
             {
@@ -211,7 +214,12 @@ namespace TE.FileVerification
         /// <param name="file">
         /// The full path, including the directory, of the file.
         /// </param>
-        public bool IsMatch(string file)
+        /// <param name="hashAlgorithm">
+        /// The hash algorithm to use for files added to the checksum file.
+        /// Existing files will use the hash algorithm stored in the checksum
+        /// file.
+        /// </param>
+        public bool IsMatch(string file, HashAlgorithm hashAlgorithm)
         {
             if (string.IsNullOrWhiteSpace(file))
             {
@@ -246,7 +254,7 @@ namespace TE.FileVerification
                 // Add the file if it didn't exist in the checksum file and
                 // then return true as it would match the hash that was just
                 // generated
-                Add(file);
+                Add(file, hashAlgorithm);
                 return true;
             }
         }
