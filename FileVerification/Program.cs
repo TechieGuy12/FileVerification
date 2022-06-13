@@ -136,9 +136,9 @@ namespace TE.FileVerification
                         watch.Stop();
 
                         Logger.WriteLine("--------------------------------------------------------------------------------");
-                        Logger.WriteLine($"Folders:         {path.DirectoryCount}");
-                        Logger.WriteLine($"Files:           {path.FileCount}");
-                        Logger.WriteLine($"Time (ms):       {watch.ElapsedMilliseconds}");
+                        Logger.WriteLine($"Folders:             {path.DirectoryCount}");
+                        Logger.WriteLine($"Files:               {path.FileCount}");
+                        Logger.WriteLine($"Time (ms):           {watch.ElapsedMilliseconds}");
                         Logger.WriteLine("--------------------------------------------------------------------------------");
                     }
 
