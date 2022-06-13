@@ -52,6 +52,12 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(hashOption);
 
+            var threadsOption = new Option<int>(
+                aliases: new string[] { "--threads", "-t" },
+                description: "The number of threads to use to verify the files."
+            );
+            rootCommand.AddOption(threadsOption);
+
             var settingsFileOption = new Option<string>(
                     aliases: new string[] { "--settingsFile", "-sfi" },
                     description: "The name of the settings XML file."
@@ -64,11 +70,11 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(settingsFolderOption);
 
-            rootCommand.SetHandler((fileOptionValue, algorithmOptionValue, hashOption, settingsFileOptionValue, settingsFolderOptionValue) =>
+            rootCommand.SetHandler((fileOptionValue, algorithmOptionValue, hashOptionValue, threadsOptionValue, settingsFileOptionValue, settingsFolderOptionValue) =>
             {
-                Run(fileOptionValue, algorithmOptionValue, hashOption, settingsFileOptionValue, settingsFolderOptionValue);
+                Run(fileOptionValue, algorithmOptionValue, hashOptionValue, threadsOptionValue, settingsFileOptionValue, settingsFolderOptionValue);
             },
-            fileOption, algorithmOption, hashOption, settingsFileOption, settingsFolderOption);
+            fileOption, algorithmOption, hashOption, threadsOption, settingsFileOption, settingsFolderOption);
             return rootCommand.Invoke(args);
         }
 
@@ -80,7 +86,7 @@ namespace TE.FileVerification
         /// <param name="settingsFile"></param>
         /// <param name="settingsFolder"></param>
         /// <returns></returns>
-        static int Run(string? file, HashAlgorithm? algorithm, string hashOption, string? settingsFile, string? settingsFolder)
+        static int Run(string? file, HashAlgorithm? algorithm, string hashOption, int? threads, string? settingsFile, string? settingsFolder)
         {
             try
             {
@@ -95,6 +101,15 @@ namespace TE.FileVerification
                     algorithm = HashAlgorithm.SHA256;
                 }
 
+                if (threads == null || threads == default(int))
+                {
+                    threads = Environment.ProcessorCount;
+                }
+                else if (threads <= 0)
+                {
+                    threads = 1;
+                }
+
                 // Read the settings file if one was provided as an argument
                 Settings? settings = null;
                 if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
@@ -106,6 +121,7 @@ namespace TE.FileVerification
                 Logger.WriteLine("--------------------------------------------------------------------------------");
                 Logger.WriteLine($"Folder/File:         {file}");
                 Logger.WriteLine($"Hash Algorithm:      {algorithm}");
+                Logger.WriteLine($"Threads:             {threads}");
                 Logger.WriteLine("--------------------------------------------------------------------------------");
 
                 if (string.IsNullOrWhiteSpace(hashOption))
@@ -116,7 +132,7 @@ namespace TE.FileVerification
                     path.Crawl(true);
                     if (path.Files != null)
                     {
-                        path.Check((HashAlgorithm)algorithm);
+                        path.Check((HashAlgorithm)algorithm, (int)threads);
                         watch.Stop();
 
                         Logger.WriteLine("--------------------------------------------------------------------------------");
