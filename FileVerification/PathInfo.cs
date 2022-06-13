@@ -147,7 +147,7 @@ namespace TE.FileVerification
                 CrawlDirectory(includeSubDir);
             }
 
-            GetChecksumFiles(includeSubDir);
+            //GetChecksumFiles(includeSubDir);
         }
 
         /// <summary>
@@ -160,15 +160,23 @@ namespace TE.FileVerification
         /// Existing files will use the hash algorithm stored in the checksum
         /// file.
         /// </param>
-        public void Check(HashAlgorithm hashAlgorithm)
+        /// <param name="threads">
+        /// The number of threads to use to verify the files.
+        /// </param>
+        public void Check(HashAlgorithm hashAlgorithm, int threads)
         {
             if (Files == null || ChecksumFileInfo == null)
             {
                 return;
             }
-            
+
+            if (threads <= 0)
+            {
+                threads = 1;
+            }
+
             ParallelOptions options = new ParallelOptions();
-            options.MaxDegreeOfParallelism = Environment.ProcessorCount;
+            options.MaxDegreeOfParallelism = threads;
             Parallel.ForEach(Files, options, file =>
             {                
                 if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
@@ -334,6 +342,13 @@ namespace TE.FileVerification
                 Files = new ConcurrentQueue<string>();
             }
 
+            // Initialize the checksum dictionary, if needed, so the checksum
+            // files can be added if they are found in the directory
+            if (ChecksumFileInfo == null)
+            {
+                ChecksumFileInfo = new ConcurrentDictionary<string, ChecksumFile>();
+            }
+
             try
             {
                 // Get the files and then add them to the queue for verifying
@@ -343,11 +358,22 @@ namespace TE.FileVerification
                         SearchOption.TopDirectoryOnly);
                 foreach (FileInfo file in files)
                 {
-                    if (file.Name.Equals(_checksumFileName) || IsSystemFile(file.FullName))
+                    // Check if the file is the checksum file, and if it is,
+                    // add it to the dictionary
+                    if (file.Name.Equals(_checksumFileName))
                     {
-                        continue;
+                        string? fileDir = file.DirectoryName;
+                        if (!string.IsNullOrWhiteSpace(fileDir))
+                        {
+                            ChecksumFileInfo.TryAdd(fileDir, new ChecksumFile(file.FullName));
+                        }
                     }
-                    Files.Enqueue(file.FullName);
+
+                    // Only add the file to the queue if it isn't a system file
+                    if (!IsSystemFile(file.FullName))
+                    {
+                        Files.Enqueue(file.FullName);
+                    }
                 }
             }
             catch (Exception ex)
