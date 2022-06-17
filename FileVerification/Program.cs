@@ -58,6 +58,12 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(threadsOption);
 
+            var getHashOnlyOption = new Option<bool>(
+                aliases: new string[] { "--hashonly", "-ho" },
+                description: "Generate and display the file hash."
+            );
+            rootCommand.AddOption(getHashOnlyOption);
+
             var settingsFileOption = new Option<string>(
                     aliases: new string[] { "--settingsFile", "-sfi" },
                     description: "The name of the settings XML file."
@@ -70,11 +76,34 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(settingsFolderOption);
 
-            rootCommand.SetHandler((fileOptionValue, algorithmOptionValue, hashOptionValue, threadsOptionValue, settingsFileOptionValue, settingsFolderOptionValue) =>
-            {
-                Run(fileOptionValue, algorithmOptionValue, hashOptionValue, threadsOptionValue, settingsFileOptionValue, settingsFolderOptionValue);
-            },
-            fileOption, algorithmOption, hashOption, threadsOption, settingsFileOption, settingsFolderOption);
+            rootCommand.SetHandler(
+                (
+                    fileOptionValue,
+                    algorithmOptionValue,
+                    hashOptionValue,
+                    getHashOnlyOptionValue,
+                    threadsOptionValue,
+                    settingsFileOptionValue,
+                    settingsFolderOptionValue
+                ) =>
+                {
+                    Run(
+                        fileOptionValue,
+                        algorithmOptionValue,
+                        hashOptionValue,
+                        getHashOnlyOptionValue,
+                        threadsOptionValue,
+                        settingsFileOptionValue,
+                        settingsFolderOptionValue);
+                },
+                fileOption,
+                algorithmOption,
+                hashOption,
+                getHashOnlyOption,
+                threadsOption,
+                settingsFileOption,
+                settingsFolderOption
+            );
             return rootCommand.Invoke(args);
         }
 
@@ -86,7 +115,14 @@ namespace TE.FileVerification
         /// <param name="settingsFile"></param>
         /// <param name="settingsFolder"></param>
         /// <returns></returns>
-        static int Run(string? file, HashAlgorithm? algorithm, string hashOption, int? threads, string? settingsFile, string? settingsFolder)
+        static int Run(
+            string? file,
+            HashAlgorithm? algorithm,
+            string hashOption,
+            bool hashOnlyOption,
+            int? threads,
+            string? settingsFile,
+            string? settingsFolder)
         {
             try
             {
@@ -110,22 +146,31 @@ namespace TE.FileVerification
                     threads = 1;
                 }
 
-                // Read the settings file if one was provided as an argument
-                Settings? settings = null;
-                if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
-                {
-                    ISettingsFile xmlFile = new XmlFile(settingsFolder, settingsFile);
-                    settings = xmlFile.Read();
-                }
+                // Trim the double-quote from the path, since it can cause an
+                // issue if the path ends with a slash ('\'), because the code
+                // will interpret the slash and double-quote as an escape
+                // character for the double quote ('\"' to '"')
+                file = file.Trim('"');
 
-                Logger.WriteLine("--------------------------------------------------------------------------------");
-                Logger.WriteLine($"Folder/File:         {file}");
-                Logger.WriteLine($"Hash Algorithm:      {algorithm}");
-                Logger.WriteLine($"Threads:             {threads}");
-                Logger.WriteLine("--------------------------------------------------------------------------------");
-
-                if (string.IsNullOrWhiteSpace(hashOption))
+                // If the hash option has not been specified, or the hash only
+                // option is false then continue with cralwing the directory to
+                // generate and verify the hashes of the files
+                if (string.IsNullOrWhiteSpace(hashOption) && !hashOnlyOption)
                 {
+                    // Read the settings file if one was provided as an argument
+                    Settings? settings = null;
+                    if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
+                    {
+                        ISettingsFile xmlFile = new XmlFile(settingsFolder, settingsFile);
+                        settings = xmlFile.Read();
+                    }
+
+                    Logger.WriteLine("--------------------------------------------------------------------------------");
+                    Logger.WriteLine($"Folder/File:         {file}");
+                    Logger.WriteLine($"Hash Algorithm:      {algorithm}");
+                    Logger.WriteLine($"Threads:             {threads}");
+                    Logger.WriteLine("--------------------------------------------------------------------------------");
+
                     PathInfo path = new PathInfo(file);
                     Stopwatch watch = new Stopwatch();
                     watch.Start();
@@ -142,7 +187,7 @@ namespace TE.FileVerification
                         Logger.WriteLine("--------------------------------------------------------------------------------");
                     }
 
-                    // If settings  gdwere specified, then send the notifications
+                    // If settings were specified, then send the notifications
                     if (settings != null)
                     {
                         settings.Send();
@@ -165,18 +210,34 @@ namespace TE.FileVerification
                         return ERROR_NO_HASH;
                     }
 
-                    int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
+                    // If the hash only option was specified, then just display
+                    // the hash of the file
+                    if (hashOnlyOption)
+                    {
+                        Logger.WriteLine(fileHash);
+                        return SUCCESS;
+                    }
 
-                    if (returnValue == SUCCESS)
+                    // The the hash option was specified, compare the file hash
+                    // with the hash passed through the argument
+                    if (!string.IsNullOrWhiteSpace(hashOption))
                     {
-                        Logger.WriteLine($"The file hash matches the hash '{hashOption}'");
-                    }
-                    else
-                    {
-                        Logger.WriteLine($"The file hash '{fileHash}' does not match the hash '{hashOption}'");
-                    }
-                    return returnValue;
+                        int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
+
+                        if (returnValue == SUCCESS)
+                        {
+                            Logger.WriteLine($"The file hash matches the hash '{hashOption}'");
+                        }
+                        else
+                        {
+                            Logger.WriteLine($"The file hash '{fileHash}' does not match the hash '{hashOption}'");
+                        }
+
+                        return returnValue;
+                    }                    
                 }
+
+                return SUCCESS;
             }
             catch (Exception ex)
             {
