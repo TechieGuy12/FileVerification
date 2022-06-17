@@ -139,15 +139,12 @@ namespace TE.FileVerification
             // path value as there is no directory to be crawled
             if (IsFile(FullPath))
             {
-                Files = new ConcurrentQueue<string>();
-                Files.Enqueue(FullPath);                
+                CrawlDirectory();                              
             }
             else
             {
                 CrawlDirectory(includeSubDir);
             }
-
-            //GetChecksumFiles(includeSubDir);
         }
 
         /// <summary>
@@ -249,36 +246,65 @@ namespace TE.FileVerification
         }
 
         /// <summary>
-        /// Returns a value indicating the path is a valid directory.
+        /// Crawls the directory for a single file by getting the checksum file
+        /// for the directory.
         /// </summary>
-        /// <returns>
-        /// <c>true</c> if the path is a valid directory, otherwise <c>false</c>.
-        /// </returns>
-        public static bool IsDirectory(string path)
+        /// <remarks>
+        /// This method is used for getting the hash and verifying a single
+        /// file and is used to get the checksum file from the directory. The
+        /// method then adds the full path to the file to the Files queue.
+        /// </remarks>
+        private void CrawlDirectory()
         {
-            return Directory.Exists(path);
-        }
+            // If no files have been stored, create a new queue for storing
+            // the files
+            if (Files == null)
+            {
+                Files = new ConcurrentQueue<string>();
+            }
 
-        /// <summary>
-        /// Returns a value indicating the path is a valid file.
-        /// </summary>
-        /// <returns>
-        /// <c>true</c> if the path is a valid file, othersize <c>false</c>.
-        /// </returns>
-        public static bool IsFile(string path)
-        {
-            return File.Exists(path);
-        }
+            // Initialize the checksum dictionary, if needed, so the checksum
+            // files can be added if they are found in the directory
+            if (ChecksumFileInfo == null)
+            {
+                ChecksumFileInfo = new ConcurrentDictionary<string, ChecksumFile>();
+            }
 
-        /// <summary>
-        /// Returns a value indicating the path exists.
-        /// </summary>
-        /// <returns>
-        /// <c>true</c> if the path exists, otherwise <c>false</c>.
-        /// </returns>
-        public bool Exists()
-        {
-            return IsDirectory(FullPath) || IsFile(FullPath);
+            if (string.IsNullOrWhiteSpace(_directory) || string.IsNullOrWhiteSpace(_checksumFileName))
+            {
+                return;
+            }
+
+            DirectoryInfo? dir = null;
+            try
+            {
+                dir = new DirectoryInfo(_directory);
+
+                // Get the files and then add them to the queue for verifying
+                IEnumerable<FileInfo> files =
+                    dir.EnumerateFiles(
+                        _checksumFileName,
+                        SearchOption.TopDirectoryOnly);
+
+                foreach (FileInfo checksumFile in files)
+                {
+                    ChecksumFileInfo.TryAdd(_directory, new ChecksumFile(checksumFile.FullName));
+                }
+
+                Files.Enqueue(FullPath);
+            }
+            catch (Exception ex)
+                when (ex is ArgumentNullException || ex is ArgumentOutOfRangeException || ex is DirectoryNotFoundException || ex is System.Security.SecurityException)
+            {
+                if (dir != null)
+                {
+                    Console.WriteLine($"Could not get files from '{dir.FullName}'. Reason: {ex.Message}");
+                }
+                else
+                {
+                    Console.WriteLine($"Could not get files from directory. Reason: {ex.Message}");
+                }
+            }
         }
 
         /// <summary>
@@ -315,7 +341,7 @@ namespace TE.FileVerification
                     }
                     catch (AggregateException ae)
                     {
-                        foreach (var ex in ae.Flatten().InnerExceptions )
+                        foreach (var ex in ae.Flatten().InnerExceptions)
                         {
                             Logger.WriteLine($"A directory could not be crawled. Reason: {ex.Message}");
                         }
@@ -403,76 +429,36 @@ namespace TE.FileVerification
         }
 
         /// <summary>
-        /// Gets the checksum files from each directory.
+        /// Returns a value indicating the path exists.
         /// </summary>
-        /// <param name="includeSubDir">
-        /// Include subdirectories when searching for checksum files.
-        /// </param>
-        private void GetChecksumFiles(bool includeSubDir)
+        /// <returns>
+        /// <c>true</c> if the path exists, otherwise <c>false</c>.
+        /// </returns>
+        public bool Exists()
         {
-            if (string.IsNullOrWhiteSpace(_checksumFileName) || string.IsNullOrWhiteSpace(_directory))
-            {
-                return;
-            }
-
-            IEnumerable<string>? checksumFiles;
-
-            try
-            {
-
-                // Get all the checksums in the directory and sub-directories,
-                // if specified
-                checksumFiles =
-                    Directory.EnumerateFiles(
-                        _directory,
-                        _checksumFileName,
-                        GetSearchOption(includeSubDir));
-                ChecksumFileInfo = new ConcurrentDictionary<string, ChecksumFile>();
-            }
-            catch (Exception ex)
-            {
-                Logger.WriteLine($"Could not get checksum files for directory '{_directory}'. Reason: {ex.Message}");
-                return;
-            }
-
-            // Loop through each of the checksum files and add the information
-            // in the checksum list
-            foreach (string file in checksumFiles)
-            {
-                try
-                {
-                    // Get the directory of the file as it will be used as the
-                    // key for the checksum file dictionary
-                    string? fileDir = Path.GetDirectoryName(file);
-                    if (!string.IsNullOrWhiteSpace(fileDir))
-                    {
-                        ChecksumFileInfo.TryAdd(fileDir, new ChecksumFile(file));
-                    }
-                    else
-                    {
-                        Logger.WriteLine($"Could not get directory of checksum file '{file}'.");                        
-                    }
-                }
-                catch (Exception ex)
-                    when (ex is ArgumentException || ex is PathTooLongException)
-                {
-                    Logger.WriteLine($"Could not get directory of checksum file '{file}'. Reason: {ex.Message}");
-                }
-            }
+            return IsDirectory(FullPath) || IsFile(FullPath);
         }
 
         /// <summary>
-        /// Gets the search option used to search the directories.
+        /// Returns a value indicating the path is a valid directory.
         /// </summary>
-        /// <param name="includeSubDir">
-        /// Indicates if the subdirectories are to be included in the search.
-        /// </param>
         /// <returns>
-        /// A <see cref="SearchOption"/> value.
+        /// <c>true</c> if the path is a valid directory, otherwise <c>false</c>.
         /// </returns>
-        private static SearchOption GetSearchOption(bool includeSubDir)
+        public static bool IsDirectory(string path)
         {
-            return includeSubDir ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            return Directory.Exists(path);
+        }
+
+        /// <summary>
+        /// Returns a value indicating the path is a valid file.
+        /// </summary>
+        /// <returns>
+        /// <c>true</c> if the path is a valid file, othersize <c>false</c>.
+        /// </returns>
+        public static bool IsFile(string path)
+        {
+            return File.Exists(path);
         }
 
         /// <summary>
