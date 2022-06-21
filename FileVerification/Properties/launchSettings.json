@@ -2,7 +2,7 @@
   "profiles": {
     "FileVerification": {
       "commandName": "Project",
-      "commandLineArgs": "-f \"C:\\TEMP3\" -t 128"
+      "commandLineArgs": "-f \"C:\\TEMP3\" -esd false"
     }
   }
 }

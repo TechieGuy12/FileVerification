@@ -14,11 +14,12 @@ The following arguments can be passed into File Verification:
 | --------- | ----------- |
 | -f, --file &lt;_file_&gt; | (Required) The file or folder to generate the checksum. |
 | -a, --algorithm &lt;_MD5,SHA1,SHA256,SHA512_&gt; | The hash algorithm used to generate the checksum. Default: SHA256. |
+| -cf, --checksumfile &lt;_checksum file_&gt; | The name of the checksum file. Default: __fv.txt. |
+| -esd, --excludesubdir | Exclude files in subdirectories when creating the checksums. |
 | -ha, --hash &lt;_hash_&gt; | The hash used to validate against the file specified with the -f argument. |
 | -t, --threads &lt;_threads_&gt; | The number of threads to use to verify the file(s). Default: number of processors. |
 | -ho, --hashonly | Generate and display the file hash - doesn't save the hash to the checksum file. |
-| - sfi, --settingsFile &lt;_settingsFile_&gt; | The name of the settings XML file. |
-| - sfo, --settingsFolder &lt;_settingsFolder_&gt; | The folder containing the settings file. |
+| - sf, --settingsfile &lt;_settingsFile_&gt; | The full path to the settings XML file. |
 | --version | Version information. |
 | -?, -h, --help | Show the help and usage information. |
 

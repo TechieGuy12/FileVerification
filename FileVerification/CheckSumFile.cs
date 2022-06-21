@@ -47,7 +47,7 @@ namespace TE.FileVerification
         /// <summary>
         /// Gets the dictionary of checksums for the checksum file.
         /// </summary>
-        public Dictionary<string, HashInfo> Checksums { get; private set; }
+        public ConcurrentDictionary<string, HashInfo> Checksums { get; private set; }
 
         /// <summary>
         /// Gets the number of files in the checksum file.
@@ -90,7 +90,7 @@ namespace TE.FileVerification
             }
             Directory = directory;
 
-            Checksums = new Dictionary<string, HashInfo>();
+            Checksums = new ConcurrentDictionary<string, HashInfo>();
 
             if (File.Exists(FullPath))
             {
@@ -143,7 +143,7 @@ namespace TE.FileVerification
 
                     // Get the full path to the file to use as the key to make
                     // it unique so it can be used for searching
-                    Checksums.Add(Path.Combine(Directory, fileName), info);
+                    Checksums.TryAdd(Path.Combine(Directory, fileName), info);
                 }
             }
             catch (UnauthorizedAccessException)
@@ -183,7 +183,7 @@ namespace TE.FileVerification
 
             try
             {
-                Checksums.Add(file, new HashInfo(file, hashAlgorithm));
+                Checksums.TryAdd(file, new HashInfo(file, hashAlgorithm));
             }
             catch(ArgumentNullException ex)
             {

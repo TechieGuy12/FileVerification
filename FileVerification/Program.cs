@@ -40,6 +40,18 @@ namespace TE.FileVerification
             fileOption.IsRequired = true;
             rootCommand.AddOption(fileOption);
 
+            var checksumFileOption = new Option<string>(
+                aliases: new string[] { "--checksumfile", "-cf" },
+                description: "The name of the checksum file."
+            );
+            rootCommand.AddOption(checksumFileOption);
+
+            var excludeSubDirOption = new Option<bool>(
+                aliases: new string[] { "-excludesubdir", "-esd" },
+                description: "Exclude files in subdirectories when creating the checksums."
+            );
+            rootCommand.AddOption(excludeSubDirOption);
+
             var algorithmOption = new Option<HashAlgorithm>(
                     aliases: new string[] { "--algorithm", "-a" },
                     description: "The hash algorithm to use."
@@ -52,57 +64,54 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(hashOption);
 
-            var threadsOption = new Option<int>(
-                aliases: new string[] { "--threads", "-t" },
-                description: "The number of threads to use to verify the files."
-            );
-            rootCommand.AddOption(threadsOption);
-
             var getHashOnlyOption = new Option<bool>(
                 aliases: new string[] { "--hashonly", "-ho" },
                 description: "Generate and display the file hash."
             );
             rootCommand.AddOption(getHashOnlyOption);
 
+            var threadsOption = new Option<int>(
+                aliases: new string[] { "--threads", "-t" },
+                description: "The number of threads to use to verify the files."
+            );
+            rootCommand.AddOption(threadsOption);
+
             var settingsFileOption = new Option<string>(
-                    aliases: new string[] { "--settingsFile", "-sfi" },
-                    description: "The name of the settings XML file."
+                    aliases: new string[] { "--settingsfile", "-sf" },
+                    description: "The full path to the settings XML file."
             );
             rootCommand.AddOption(settingsFileOption);
 
-            var settingsFolderOption = new Option<string>(
-                    aliases: new string[] { "--settingsFolder", "-sfo" },
-                    description: "The folder containing the settings XML file."
-            );
-            rootCommand.AddOption(settingsFolderOption);
-
             rootCommand.SetHandler(
-                (
-                    fileOptionValue,
-                    algorithmOptionValue,
-                    hashOptionValue,
-                    getHashOnlyOptionValue,
-                    threadsOptionValue,
-                    settingsFileOptionValue,
-                    settingsFolderOptionValue
-                ) =>
+            (
+                fileOptionValue,
+                checksumFileOptionValue,
+                excludeSubDirOptionValue,
+                algorithmOptionValue,
+                hashOptionValue,
+                getHashOnlyOptionValue,
+                threadsOptionValue,
+                settingsFileOptionValue
+            ) =>
                 {
                     Run(
                         fileOptionValue,
+                        checksumFileOptionValue,
+                        excludeSubDirOptionValue,
                         algorithmOptionValue,
                         hashOptionValue,
                         getHashOnlyOptionValue,
                         threadsOptionValue,
-                        settingsFileOptionValue,
-                        settingsFolderOptionValue);
+                        settingsFileOptionValue);
                 },
                 fileOption,
+                checksumFileOption,
+                excludeSubDirOption,
                 algorithmOption,
                 hashOption,
                 getHashOnlyOption,
                 threadsOption,
-                settingsFileOption,
-                settingsFolderOption
+                settingsFileOption
             );
             return rootCommand.Invoke(args);
         }
@@ -113,16 +122,16 @@ namespace TE.FileVerification
         /// <param name="file"></param>
         /// <param name="algorithm"></param>
         /// <param name="settingsFile"></param>
-        /// <param name="settingsFolder"></param>
         /// <returns></returns>
         static int Run(
             string? file,
+            string? checksumFile,
+            bool? excludeSubDir,
             HashAlgorithm? algorithm,
             string hashOption,
             bool hashOnlyOption,
             int? threads,
-            string? settingsFile,
-            string? settingsFolder)
+            string? settingsFile)
         {
             try
             {
@@ -130,6 +139,16 @@ namespace TE.FileVerification
                 {
                     Logger.WriteLine("The file or folder was not specified.");
                     return ERROR;
+                }
+
+                if (checksumFile == null || string.IsNullOrEmpty(checksumFile))
+                {
+                    checksumFile = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
+                }
+
+                if (excludeSubDir == null)
+                {
+                    excludeSubDir = false;
                 }
 
                 if (algorithm == null)
@@ -159,9 +178,9 @@ namespace TE.FileVerification
                 {
                     // Read the settings file if one was provided as an argument
                     Settings? settings = null;
-                    if (!string.IsNullOrWhiteSpace(settingsFile) && !string.IsNullOrWhiteSpace(settingsFolder))
+                    if (!string.IsNullOrWhiteSpace(settingsFile))
                     {
-                        ISettingsFile xmlFile = new XmlFile(settingsFolder, settingsFile);
+                        ISettingsFile xmlFile = new XmlFile(settingsFile);
                         settings = xmlFile.Read();
                     }
 
@@ -171,10 +190,10 @@ namespace TE.FileVerification
                     Logger.WriteLine($"Threads:             {threads}");
                     Logger.WriteLine("--------------------------------------------------------------------------------");
 
-                    PathInfo path = new PathInfo(file);
+                    PathInfo path = new PathInfo(file, checksumFile);
                     Stopwatch watch = new Stopwatch();
                     watch.Start();
-                    path.Crawl(true);
+                    path.Crawl(!(bool)excludeSubDir);
                     if (path.Files != null)
                     {
                         path.Check((HashAlgorithm)algorithm, (int)threads);

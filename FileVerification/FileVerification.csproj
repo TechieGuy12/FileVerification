@@ -6,6 +6,8 @@
     <AssemblyName>fv</AssemblyName>
     <RootNamespace>TE.FileVerification</RootNamespace>
     <Nullable>enable</Nullable>
+    <FileVersion>1.1.1.0</FileVersion>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
