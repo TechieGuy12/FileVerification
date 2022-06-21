@@ -69,7 +69,6 @@ namespace TE.FileVerification
         /// <exception cref="InvalidOperationException">
         /// Thrown if the directory of the path could not be determined.
         /// </exception>
-        /// <exception cref=">"
         public PathInfo(string path)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
