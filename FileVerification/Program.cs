@@ -48,7 +48,7 @@ namespace TE.FileVerification
 
             var excludeSubDirOption = new Option<bool>(
                 aliases: new string[] { "-excludesubdir", "-esd" },
-                description: "Exclude subdirectories when creating the checksum for files."
+                description: "Exclude files in subdirectories when creating the checksums."
             );
             rootCommand.AddOption(excludeSubDirOption);
 
