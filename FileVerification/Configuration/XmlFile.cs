@@ -25,14 +25,11 @@ namespace TE.FileVerification.Configuration
         /// provided with the path and name of the settings file.
         /// </summary>
         /// <param name="path">
-        /// The folder path to the settings file.
+        /// The full path to the settings file.
         /// </param>
-        /// <param name="name">
-        /// The name of the settings file.
-        /// </param>
-        public XmlFile(string path, string name)
+        public XmlFile(string path)
         {
-            _fullPath = GetFullPath(path, name);
+            _fullPath = CheckFullPath(path);
         }
 
         /// <summary>
@@ -74,38 +71,23 @@ namespace TE.FileVerification.Configuration
         /// Gets the full path to the settings file.
         /// </summary>
         /// <param name="path">
-        /// The path to the settings file.
-        /// </param>
-        /// <param name="name">
-        /// The name of the settings file.
+        /// The full path to the settings file.
         /// </param>
         /// <returns>
         /// The full path to the settings file, otherwise null.
         /// </returns>
-        private string? GetFullPath(string path, string name)
+        private string? CheckFullPath(string path)
         {
-            string? folderPath = GetFolderPath(path);
-            if (folderPath == null)
-            {
-                return null;
-            }
-
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                name = DEFAULT_SETTINGS_FILE;
-            }
-
             try
             {
-                string fullPath = Path.Combine(folderPath, name);
-                if (File.Exists(fullPath))
+                if (File.Exists(path))
                 {
-                    Console.WriteLine($"Settings file: {fullPath}.");
-                    return fullPath;
+                    Console.WriteLine($"Settings file: {path}.");
+                    return path;
                 }
                 else
                 {
-                    Console.WriteLine($"The settings file '{fullPath}' was not found.");
+                    Console.WriteLine($"The settings file '{path}' was not found.");
                     return null;
                 }
             }
