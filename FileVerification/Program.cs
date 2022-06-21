@@ -40,6 +40,12 @@ namespace TE.FileVerification
             fileOption.IsRequired = true;
             rootCommand.AddOption(fileOption);
 
+            var checksumFileOption = new Option<string>(
+                aliases: new string[] { "--checksumfile", "-cf" },
+                description: "The name of the checksum file."
+            );
+            rootCommand.AddOption(checksumFileOption);
+
             var algorithmOption = new Option<HashAlgorithm>(
                     aliases: new string[] { "--algorithm", "-a" },
                     description: "The hash algorithm to use."
@@ -65,13 +71,13 @@ namespace TE.FileVerification
             rootCommand.AddOption(getHashOnlyOption);
 
             var settingsFileOption = new Option<string>(
-                    aliases: new string[] { "--settingsFile", "-sfi" },
+                    aliases: new string[] { "--settingsfile", "-sfi" },
                     description: "The name of the settings XML file."
             );
             rootCommand.AddOption(settingsFileOption);
 
             var settingsFolderOption = new Option<string>(
-                    aliases: new string[] { "--settingsFolder", "-sfo" },
+                    aliases: new string[] { "--settingsfolder", "-sfo" },
                     description: "The folder containing the settings XML file."
             );
             rootCommand.AddOption(settingsFolderOption);
@@ -79,6 +85,7 @@ namespace TE.FileVerification
             rootCommand.SetHandler(
                 (
                     fileOptionValue,
+                    checksumFileOptionValue,
                     algorithmOptionValue,
                     hashOptionValue,
                     getHashOnlyOptionValue,
@@ -89,6 +96,7 @@ namespace TE.FileVerification
                 {
                     Run(
                         fileOptionValue,
+                        checksumFileOptionValue,
                         algorithmOptionValue,
                         hashOptionValue,
                         getHashOnlyOptionValue,
@@ -97,6 +105,7 @@ namespace TE.FileVerification
                         settingsFolderOptionValue);
                 },
                 fileOption,
+                checksumFileOption,
                 algorithmOption,
                 hashOption,
                 getHashOnlyOption,
@@ -117,6 +126,7 @@ namespace TE.FileVerification
         /// <returns></returns>
         static int Run(
             string? file,
+            string? checksumFile,
             HashAlgorithm? algorithm,
             string hashOption,
             bool hashOnlyOption,
@@ -130,6 +140,11 @@ namespace TE.FileVerification
                 {
                     Logger.WriteLine("The file or folder was not specified.");
                     return ERROR;
+                }
+
+                if (checksumFile == null || string.IsNullOrEmpty(checksumFile))
+                {
+                    checksumFile = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
                 }
 
                 if (algorithm == null)
@@ -171,7 +186,7 @@ namespace TE.FileVerification
                     Logger.WriteLine($"Threads:             {threads}");
                     Logger.WriteLine("--------------------------------------------------------------------------------");
 
-                    PathInfo path = new PathInfo(file);
+                    PathInfo path = new PathInfo(file, checksumFile);
                     Stopwatch watch = new Stopwatch();
                     watch.Start();
                     path.Crawl(true);

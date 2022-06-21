@@ -18,7 +18,7 @@ namespace TE.FileVerification
         private readonly string? _directory;
 
         // The name of the checksum files
-        private readonly string? _checksumFileName;
+        private readonly string _checksumFileName;
 
         // A queue of tasks used to crawl the directory tree
         private readonly ConcurrentQueue<Task> _tasks = 
@@ -62,6 +62,9 @@ namespace TE.FileVerification
         /// <param name="path">
         /// The full path to a directory or a file.
         /// </param>
+        /// <param name="checksumFileName">
+        /// The name of the checksum file.
+        /// </param>
         /// <exception cref="ArgumentNullException">
         /// Thrown if the <paramref name="path"/> parameter is <c>null</c> or
         /// empty.
@@ -69,7 +72,7 @@ namespace TE.FileVerification
         /// <exception cref="InvalidOperationException">
         /// Thrown if the directory of the path could not be determined.
         /// </exception>
-        public PathInfo(string path)
+        public PathInfo(string path, string checksumFileName)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
             {
@@ -82,7 +85,7 @@ namespace TE.FileVerification
             // directory, and if it does, then extract and store the directory
             // name
             if (IsFile(FullPath))
-            {                
+            {
                 _directory = Path.GetDirectoryName(FullPath);
                 if (string.IsNullOrWhiteSpace(_directory))
                 {
@@ -95,27 +98,19 @@ namespace TE.FileVerification
             }
 
             _checksumFileName = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
-        }
 
-        /// <summary>
-        /// Initializes an instance of the <see cref="PathInfo"/> class when
-        /// provided with the full path and the checksum file name.
-        /// </summary>
-        /// <param name="path">
-        /// The full path to a directory or a file.
-        /// </param>
-        /// <param name="checksumFileName">
-        /// The name of the checksum file.
-        /// </param>
-        /// <exception cref="ArgumentNullException">
-        /// Thrown if a paramter is <c>null</c> or empty.
-        /// </exception>
-        public PathInfo(string path, string checksumFileName)
-            : this(path)
-        {
-            if (!string.IsNullOrWhiteSpace(checksumFileName))
+            // If the checksum file name was specified, use the name, otherwise
+            // keep the default name
+            if (checksumFileName != null && !string.IsNullOrWhiteSpace(checksumFileName))
             {
-                _checksumFileName = checksumFileName;
+                if (checksumFileName.IndexOfAny(Path.GetInvalidFileNameChars()) < 0)
+                {
+                    _checksumFileName = checksumFileName;
+                }
+                else
+                {
+                    Logger.WriteLine($"The checksum file name '{checksumFileName}' contains invalid characters. The checksum file name '{_checksumFileName}' will be used instead.");
+                }
             }
         }
 
@@ -213,7 +208,7 @@ namespace TE.FileVerification
                         new ChecksumFile
                             (Path.Combine(
                                 fileDir, 
-                                ChecksumFile.DEFAULT_CHECKSUM_FILENAME));
+                                _checksumFileName));
 
                     // If the new checksum fle could not be added, then another
                     // thread had it created at the same time, so try and grab
