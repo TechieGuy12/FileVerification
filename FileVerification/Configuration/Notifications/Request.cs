@@ -1,6 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -40,73 +39,11 @@ namespace TE.FileVerification.Configuration.Notifications
         // XML mime type
         private const string MIME_TYPE_XML = "application/xml";
 
-        // The HTTP client
-        private static HttpClient _httpClient;
+        // The collection of services - contains the HTTP clients
+        private static readonly ServiceCollection _services = new ServiceCollection();
 
-        /// <summary>
-        /// Sends a request to a remote system.
-        /// </summary>
-        /// <param name="method"></param>
-        /// The HTTP method to use for the request.
-        /// <param name="uri"></param>
-        /// The URL of the request.
-        /// <param name="headers"></param>
-        /// A <see cref="List{T}"/> of <see cref="Header"/> objects associated
-        /// with the request.
-        /// <param name="body">
-        /// The content body of the request.
-        /// </param>
-        /// <param name="mimeType">
-        /// The MIME type associated with the request.
-        /// </param>
-        /// <returns>
-        /// The response message of the request.
-        /// </returns>
-        /// <exception cref="ArgumentNullException">
-        /// Thrown when an argument is null or empty.
-        /// </exception>
-        internal static HttpResponseMessage Send(
-            HttpMethod method,
-            Uri uri,
-            List<Header> headers,
-            string body,
-            MimeType mimeType)
-        {
-            if (uri == null)
-            {
-                throw new ArgumentNullException(nameof(uri));
-            }
-
-            if (_httpClient == null)
-            {
-                _httpClient = new HttpClient();
-            }
-
-            HttpRequestMessage request = new HttpRequestMessage(method, uri);
-            foreach (Header header in headers)
-            {
-                request.Headers.Add(header.Name, header.Value);
-            }
-            request.Content = new StringContent(body, Encoding.UTF8, GetMimeTypeString(mimeType));
-
-            HttpResponseMessage response = null;
-            try
-            {
-                response =  _httpClient.SendAsync(request).Result;
-            }
-            catch (Exception ex)
-            {
-                if (response == null)
-                {
-                    response = new HttpResponseMessage();
-                }
-
-                response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
-                response.ReasonPhrase = $"Request could not be sent. Reason: {ex.Message}";
-            }
-
-            return response;
-        }
+        // The provider of the service - the HTTP client
+        private static ServiceProvider? _serviceProvider;
 
         /// <summary>
         /// Sends a request to a remote system asychronously.
@@ -116,8 +53,7 @@ namespace TE.FileVerification.Configuration.Notifications
         /// <param name="uri"></param>
         /// The URL of the request.
         /// <param name="headers"></param>
-        /// A <see cref="List{T}"/> of <see cref="Header"/> objects associated
-        /// with the request.
+        /// The <see cref="Headers"/> object associated with the request.
         /// <param name="body">
         /// The content body of the request.
         /// </param>
@@ -130,11 +66,11 @@ namespace TE.FileVerification.Configuration.Notifications
         /// <exception cref="ArgumentNullException">
         /// Thrown when an argument is null or empty.
         /// </exception>
-        internal static async Task<HttpResponseMessage> SendAsync(
+        internal static async Task<Response> SendAsync(
             HttpMethod method,
             Uri uri,
-            List<Header> headers,
-            string body,
+            Headers? headers,
+            string? body,
             MimeType mimeType)
         {
             if (uri == null)
@@ -142,35 +78,61 @@ namespace TE.FileVerification.Configuration.Notifications
                 throw new ArgumentNullException(nameof(uri));
             }
 
-            if (_httpClient == null)
+            if (_serviceProvider == null)
             {
-                _httpClient = new HttpClient();
+                _services.AddHttpClient();
+                _serviceProvider = _services.BuildServiceProvider();
             }
 
-            HttpRequestMessage request = new HttpRequestMessage(method, uri);
-            foreach (Header header in headers)
+            using (HttpRequestMessage request = new HttpRequestMessage(method, uri))
             {
-                request.Headers.Add(header.Name, header.Value);
-            }
-            request.Content = new StringContent(body, Encoding.UTF8, GetMimeTypeString(mimeType));
-
-            HttpResponseMessage response = null;
-            try
-            {
-                response = await _httpClient.SendAsync(request);
-            }
-            catch (Exception ex)
-            {
-                if (response == null)
+                if (headers != null)
                 {
-                    response = new HttpResponseMessage();
+                    headers.Set(request);
                 }
 
-                response.StatusCode = System.Net.HttpStatusCode.InternalServerError;
-                response.ReasonPhrase = $"Request could not be sent. Reason: {ex.Message}";
-            }
+                if (body != null)
+                {
+                    request.Content = new StringContent(body, Encoding.UTF8, GetMimeTypeString(mimeType));
+                }
 
-            return response;
+                try
+                {
+                    var client = _serviceProvider.GetService<HttpClient>();
+                    if (client != null)
+                    {
+                        using (HttpResponseMessage requestResponse =
+                            await client.SendAsync(request).ConfigureAwait(false))
+                        {
+                            using (HttpContent httpContent = requestResponse.Content)
+                            {
+                                string resultContent =
+                                    await httpContent.ReadAsStringAsync().ConfigureAwait(false);
+
+                                return new Response(
+                                    requestResponse.StatusCode,
+                                    requestResponse.ReasonPhrase,
+                                    resultContent);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        return new Response(
+                            System.Net.HttpStatusCode.InternalServerError,
+                            "Request could not be sent. Reason: The HTTP client service could not be initialized.",
+                            null); ;
+                    }
+                }
+                catch (Exception ex)
+                    when (ex is ArgumentNullException || ex is InvalidOperationException || ex is HttpRequestException || ex is TaskCanceledException)
+                {
+                    return new Response(
+                        System.Net.HttpStatusCode.InternalServerError,
+                        $"Request could not be sent. Reason: {ex.Message}",
+                        null);
+                }
+            }
         }
 
         /// <summary>
