@@ -4,6 +4,7 @@ using System.Text;
 using Cryptography = System.Security.Cryptography;
 using System.IO;
 using System.Globalization;
+using System.Timers;
 
 namespace TE.FileVerification
 {
@@ -211,10 +212,18 @@ namespace TE.FileVerification
                             FileShare.None,
                             maxSize))
                     {
-
-                        hash = hashAlgorithm.ComputeHash(stream);                        
+                        hash = hashAlgorithm.ComputeHash(stream);
                     }
+                    // The following command is typically considered a no-no, but
+                    // since the above filestream object can be created for
+                    // hundreds or thousands of times - depending on the number
+                    // of files that will have a hash generated - a lot of 
+                    // memory can be consumed. By running the garbage collection
+                    // manually, this greatly reduces the amount of memory that
+                    // is used by the app, and so far, no real performance hit
+                    // has been detected
                     GC.Collect();
+
                     return BitConverter.ToString(hash).Replace("-", "", StringComparison.OrdinalIgnoreCase);
                 }
                 catch (Exception ex)
