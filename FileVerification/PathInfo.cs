@@ -97,7 +97,7 @@ namespace TE.FileVerification
                 _directory = FullPath;
             }
 
-            _checksumFileName = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
+            _checksumFileName = ChecksumFile.DEFAULTCHECKSUMFILENAME;
 
             // If the checksum file name was specified, use the name, otherwise
             // keep the default name
@@ -164,13 +164,13 @@ namespace TE.FileVerification
             if (threads <= 0)
             {
                 threads = 1;
-            }
+            }           
 
             ParallelOptions options = new ParallelOptions();
             options.MaxDegreeOfParallelism = threads;
             Parallel.ForEach(Files, options, file =>
             {                
-                if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
+                if (Path.GetFileName(file).Equals(_checksumFileName, StringComparison.OrdinalIgnoreCase) || IsSystemFile(file))
                 {
                     return;
                 }
@@ -187,12 +187,12 @@ namespace TE.FileVerification
                 // Find the checksum file for the directory containing the file
                 ChecksumFile? checksumFile = 
                     ChecksumFileInfo.FirstOrDefault(
-                        c => c.Key.Equals(fileDir)).Value;
+                        c => c.Key.Equals(fileDir, StringComparison.OrdinalIgnoreCase)).Value;
 
                 // A checksum file was found containing the file, so get the
                 // hash information for the file
                 if (checksumFile != null)
-                {
+                {                    
                     // Check if the current file matches the hash information
                     // stored in the checksum file
                     if (!checksumFile.IsMatch(file, hashAlgorithm))
@@ -218,7 +218,7 @@ namespace TE.FileVerification
                         // Find the checksum file for the directory containing the file
                         checksumFile =
                             ChecksumFileInfo.FirstOrDefault(
-                                c => c.Key.Equals(fileDir)).Value;
+                                c => c.Key.Equals(fileDir, StringComparison.OrdinalIgnoreCase)).Value;
 
                         if (checksumFile == null)
                         {
@@ -380,7 +380,7 @@ namespace TE.FileVerification
                 {
                     // Check if the file is the checksum file, and if it is,
                     // add it to the dictionary
-                    if (file.Name.Equals(_checksumFileName))
+                    if (file.Name.Equals(_checksumFileName, StringComparison.OrdinalIgnoreCase))
                     {
                         string? fileDir = file.DirectoryName;
                         if (!string.IsNullOrWhiteSpace(fileDir))

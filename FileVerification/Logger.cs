@@ -11,30 +11,25 @@ namespace TE.FileVerification
         const string DEFAULT_NAME = "fv.log";      
 
         // Full path to the log file
-        static string fullPath;
+        static readonly string fullPath;
 
         // The lines that have been logged
-        static StringBuilder _lines;
+        static StringBuilder? _lines;
 
         /// <summary>
         /// Gets the lines that have been logged.
         /// </summary>
-        public static string Lines
+        public static string? Lines
         {
             get
             {
-                return _lines != null ? _lines.ToString() : null;
+                return _lines?.ToString();
             }
         }
 
         static Logger()
         {
-            Initialize(Path.GetTempPath(), DEFAULT_NAME);
-        }
-
-        private static void Initialize(string logFolder, string logName)
-        {
-            fullPath = Path.Combine(logFolder, logName);            
+            fullPath = Path.Combine(Path.GetTempPath(), DEFAULT_NAME);
             Clear();
         }
 
@@ -68,6 +63,11 @@ namespace TE.FileVerification
                 using (StreamWriter writer = new StreamWriter(fullPath, true))
                 {
                     writer.WriteLine(message);
+                }
+
+                if (_lines == null)
+                {
+                    _lines = new StringBuilder();
                 }
 
                 _lines.AppendLine(message);

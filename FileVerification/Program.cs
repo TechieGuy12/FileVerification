@@ -143,7 +143,7 @@ namespace TE.FileVerification
 
                 if (checksumFile == null || string.IsNullOrEmpty(checksumFile))
                 {
-                    checksumFile = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
+                    checksumFile = ChecksumFile.DEFAULTCHECKSUMFILENAME;
                 }
 
                 if (excludeSubDir == null)
@@ -196,6 +196,7 @@ namespace TE.FileVerification
                     path.Crawl(!(bool)excludeSubDir);
                     if (path.Files != null)
                     {
+                        Logger.WriteLine($"File path: {path.FullPath}");
                         path.Check((HashAlgorithm)algorithm, (int)threads);
                         watch.Stop();
 
@@ -241,18 +242,18 @@ namespace TE.FileVerification
                     // with the hash passed through the argument
                     if (!string.IsNullOrWhiteSpace(hashOption))
                     {
-                        int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
+                        //int returnValue = string.Compare(fileHash, hashOption, true) == 0 ? SUCCESS : ERROR_HASH_NOT_MATCH;
 
-                        if (returnValue == SUCCESS)
+                        if (fileHash.Equals(hashOption, StringComparison.OrdinalIgnoreCase))
                         {
                             Logger.WriteLine($"The file hash matches the hash '{hashOption}'");
+                            return SUCCESS;
                         }
                         else
                         {
                             Logger.WriteLine($"The file hash '{fileHash}' does not match the hash '{hashOption}'");
+                            return ERROR_HASH_NOT_MATCH;
                         }
-
-                        return returnValue;
                     }                    
                 }
 

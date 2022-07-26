@@ -92,40 +92,15 @@ namespace TE.FileVerification
         /// A parameter is null or empty.
         /// </exception>
         public HashInfo(string filePath, string algorithm, string hash)
-            : this(filePath, algorithm)        
+            : this(filePath)        
         {
             if (hash == null || string.IsNullOrWhiteSpace(hash))
             {
                 throw new ArgumentNullException(nameof(hash));
             }
 
-            Hash = hash;
-        }
-
-        /// <summary>
-        /// Initializes an instance of the <see cref="HashInfo"/> class when
-        /// provided with the full path to the file, and the string
-        /// representation of the hash algorithm.
-        /// </summary>
-        /// <param name="filePath">
-        /// The full path, including the directory, to the file.
-        /// </param>
-        /// <param name="algorithm">
-        /// The string representation of the hash algorithm.
-        /// </param>
-        /// <exception cref="ArgumentNullException">
-        /// A parameter is null or empty.
-        /// </exception>
-        public HashInfo(string filePath, string algorithm) 
-            : this(filePath)
-        {           
-            if (algorithm == null || string.IsNullOrWhiteSpace(algorithm))
-            {
-                throw new ArgumentNullException(nameof(algorithm));
-            }
-
             Algorithm = GetAlgorithm(algorithm);
-            Hash = GetFileHash(FilePath, Algorithm);
+            Hash = hash;
         }
 
         /// <summary>
@@ -227,6 +202,7 @@ namespace TE.FileVerification
 
                 try
                 {
+                    byte[] hash;
                     using (var stream =
                         new FileStream(
                             file,
@@ -236,9 +212,10 @@ namespace TE.FileVerification
                             maxSize))
                     {
 
-                        var hash = hashAlgorithm.ComputeHash(stream);
-                        return BitConverter.ToString(hash).Replace("-", "", StringComparison.OrdinalIgnoreCase);
+                        hash = hashAlgorithm.ComputeHash(stream);                        
                     }
+                    GC.Collect();
+                    return BitConverter.ToString(hash).Replace("-", "", StringComparison.OrdinalIgnoreCase);
                 }
                 catch (Exception ex)
                 {
