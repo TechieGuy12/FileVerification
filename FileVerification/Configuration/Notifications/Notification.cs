@@ -122,8 +122,49 @@ namespace TE.FileVerification.Configuration.Notifications
         /// </param>
         internal void QueueRequest(string message)
         {
-            //_message.Append(CleanMessage(message) + @"\n");
-            _message.Append(message);
+            _message.Append(CleanMessage(message) + @"\n");            
+        }
+
+        /// <summary>
+        /// Send the notification request.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the URL is null or empty.
+        /// </exception>
+        internal Response? Send()
+        {
+            // If there isn't a message to be sent, then just return
+            if (_message == null || _message.Length <= 0)
+            {
+                return null;
+            }
+
+            if (GetUri() == null)
+            {
+                throw new InvalidOperationException("The URL is null or empty.");
+            }
+
+            if (Data == null)
+            {
+                throw new InvalidOperationException("Data for the request was not provided.");
+            }
+
+            string content = string.Empty;
+            if (Data.Body != null)
+            {
+                content = Data.Body.Replace("[message]", _message.ToString(), StringComparison.OrdinalIgnoreCase);
+            }
+
+            Response response =
+                Request.Send(
+                    Method,
+                    GetUri(),
+                    Data.Headers,
+                    content,
+                    Data.MimeType);
+
+            _message.Clear();
+            return response;
         }
 
         /// <summary>
@@ -168,7 +209,7 @@ namespace TE.FileVerification.Configuration.Notifications
             return response;
         }
 
-        public static string CleanForJSON(string s)
+        public static string CleanMessage(string s)
         {
             if (s == null || s.Length == 0)
             {

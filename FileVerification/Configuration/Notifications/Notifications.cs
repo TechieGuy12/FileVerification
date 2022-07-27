@@ -166,6 +166,38 @@ namespace TE.FileVerification.Configuration.Notifications
             foreach (Notification notification in NotificationList)
             {
                 notification.QueueRequest(message);
+
+                // continue to the next notification
+                if (!notification.HasMessage)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Logger.WriteLine($"Sending the request to {notification.Url}.");
+                    Response? response = notification.Send();
+
+                    if (response == null)
+                    {
+                        continue;
+                    }
+
+                    Logger.WriteLine($"Response: {response.StatusCode}. Content: {response.Content}");
+                }
+                catch (AggregateException aex)
+                {
+                    foreach (Exception ex in aex.Flatten().InnerExceptions)
+                    {
+                        Logger.WriteLine(ex.Message);
+                        Logger.WriteLine($"StackTrace:{Environment.NewLine}{ex.StackTrace}");
+                    }
+                }
+                catch (NullReferenceException ex)
+                {
+                    Logger.WriteLine(ex.Message);
+                    Logger.WriteLine($"StackTrace:{Environment.NewLine}{ex.StackTrace}");
+                }
             }
         }
     }

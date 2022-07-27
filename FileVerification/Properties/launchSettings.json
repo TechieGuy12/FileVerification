@@ -2,7 +2,7 @@
   "profiles": {
     "FileVerification": {
       "commandName": "Project",
-      "commandLineArgs": "-f F:\\HashTest"
+      "commandLineArgs": "-f C:\\TEMP3\\test\\fw.log -sf C:\\Temp3\\test\\config.xml"
     }
   }
 }

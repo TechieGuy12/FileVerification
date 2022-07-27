@@ -66,6 +66,96 @@ namespace TE.FileVerification.Configuration.Notifications
         /// <exception cref="ArgumentNullException">
         /// Thrown when an argument is null or empty.
         /// </exception>
+        internal static Response Send(
+            HttpMethod method,
+            Uri uri,
+            Headers? headers,
+            string? body,
+            MimeType mimeType)
+        {
+            if (uri == null)
+            {
+                throw new ArgumentNullException(nameof(uri));
+            }
+
+            if (_serviceProvider == null)
+            {
+                _services.AddHttpClient();
+                _serviceProvider = _services.BuildServiceProvider();
+            }
+
+            using (HttpRequestMessage request = new HttpRequestMessage(method, uri))
+            {
+                if (headers != null)
+                {
+                    headers.Set(request);
+                }
+
+                if (body != null)
+                {
+                    request.Content = new StringContent(body, Encoding.UTF8, GetMimeTypeString(mimeType));
+                }
+
+                try
+                {
+                    var client = _serviceProvider.GetService<HttpClient>();
+                    if (client != null)
+                    {
+                        using (HttpResponseMessage requestResponse =
+                            client.SendAsync(request).Result)
+                        {
+                            using (HttpContent httpContent = requestResponse.Content)
+                            {
+                                string resultContent =
+                                    httpContent.ReadAsStringAsync().Result;
+
+                                return new Response(
+                                    requestResponse.StatusCode,
+                                    requestResponse.ReasonPhrase,
+                                    resultContent);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        return new Response(
+                            System.Net.HttpStatusCode.InternalServerError,
+                            "Request could not be sent. Reason: The HTTP client service could not be initialized.",
+                            null); ;
+                    }
+                }
+                catch (Exception ex)
+                    when (ex is ArgumentNullException || ex is InvalidOperationException || ex is HttpRequestException || ex is TaskCanceledException)
+                {
+                    return new Response(
+                        System.Net.HttpStatusCode.InternalServerError,
+                        $"Request could not be sent. Reason: {ex.Message}",
+                        null);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to a remote system asychronously.
+        /// </summary>
+        /// <param name="method"></param>
+        /// The HTTP method to use for the request.
+        /// <param name="uri"></param>
+        /// The URL of the request.
+        /// <param name="headers"></param>
+        /// The <see cref="Headers"/> object associated with the request.
+        /// <param name="body">
+        /// The content body of the request.
+        /// </param>
+        /// <param name="mimeType">
+        /// The MIME type associated with the request.
+        /// </param>
+        /// <returns>
+        /// The response message of the request.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        /// Thrown when an argument is null or empty.
+        /// </exception>
         internal static async Task<Response> SendAsync(
             HttpMethod method,
             Uri uri,

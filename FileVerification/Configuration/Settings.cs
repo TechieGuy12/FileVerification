@@ -19,10 +19,17 @@ namespace TE.FileVerification.Configuration
         /// </summary>
         public void Send()
         {
-            if (Notifications != null)
+            if (Notifications == null)
             {
-                Notifications.Send(Logger.Lines);
+                return;
             }
+
+            if (string.IsNullOrWhiteSpace(Logger.Lines))
+            {
+                return;
+            }
+            
+            Notifications.Send(Logger.Lines);            
         }
     }
 }
