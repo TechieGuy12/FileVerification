@@ -8,8 +8,9 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 using System.Text.Json;
 using System.Globalization;
+using TE.FileVerification.Configuration;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     public class Notification
     {
@@ -122,7 +123,7 @@ namespace TE.FileVerification.Configuration.Notifications
         /// </param>
         internal void QueueRequest(string message)
         {
-            _message.Append(CleanMessage(message) + @"\n");            
+            _message.Append(CleanMessage(message) + @"\n");
         }
 
         /// <summary>

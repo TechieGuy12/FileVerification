@@ -6,10 +6,9 @@ using System.Text;
 using System.Timers;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-using TE.FileVerification;
 using System.Collections.ObjectModel;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     /// <summary>
     /// The notifications root node in the XML file.
@@ -45,7 +44,7 @@ namespace TE.FileVerification.Configuration.Notifications
         /// Initializes an instance of the <see cref="Notifications"/> class.
         /// </summary>
         public Notifications()
-        {            
+        {
             _timer = new Timer(WaitTime);
             _timer.Elapsed += OnElapsed;
             _timer.Start();
@@ -121,8 +120,8 @@ namespace TE.FileVerification.Configuration.Notifications
                 try
                 {
                     Logger.WriteLine($"Sending the request to {notification.Url}.");
-                    Response? response = 
-                        await notification.SendAsync().ConfigureAwait(false);                    
+                    Response? response =
+                        await notification.SendAsync().ConfigureAwait(false);
 
                     if (response == null)
                     {

@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using TE.FileVerification.Configuration;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     /// <summary>
     /// Contains the data used to send the request.
@@ -39,7 +40,7 @@ namespace TE.FileVerification.Configuration.Notifications
             }
             set
             {
-                _mimeType = (value == Request.JSON_NAME || value == Request.XML_NAME) ? value : Request.JSON_NAME;
+                _mimeType = value == Request.JSON_NAME || value == Request.XML_NAME ? value : Request.JSON_NAME;
             }
         }
 

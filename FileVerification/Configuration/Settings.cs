@@ -12,7 +12,7 @@ namespace TE.FileVerification.Configuration
         /// Gets or sets the notifications for the verification.
         /// </summary>
         [XmlElement("notifications")]
-        public Notifications.Notifications? Notifications { get; set; }
+        public Configuration.Notifications? Notifications { get; set; }
 
         /// <summary>
         /// Sends the notifications.
