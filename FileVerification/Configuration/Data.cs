@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-using TE.FileVerification.Configuration;
+using TE.FileVerification.Net;
 
 namespace TE.FileVerification.Configuration
 {

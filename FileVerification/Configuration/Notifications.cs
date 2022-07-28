@@ -7,6 +7,7 @@ using System.Timers;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using System.Collections.ObjectModel;
+using TE.FileVerification.Net;
 
 namespace TE.FileVerification.Configuration
 {

@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 using System.Text.Json;
 using System.Globalization;
-using TE.FileVerification.Configuration;
+using TE.FileVerification.Net;
 
 namespace TE.FileVerification.Configuration
 {

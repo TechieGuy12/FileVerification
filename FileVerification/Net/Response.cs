@@ -5,7 +5,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TE.FileVerification.Configuration
+namespace TE.FileVerification.Net
 {
     /// <summary>
     /// The information from a request response.

@@ -3,8 +3,9 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using TE.FileVerification.Configuration;
 
-namespace TE.FileVerification.Configuration
+namespace TE.FileVerification.Net
 {
     internal static class Request
     {
