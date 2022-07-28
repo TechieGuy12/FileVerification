@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TE.FileVerification.Configuration;
 
 namespace TE.FileVerification
 {
@@ -33,6 +34,11 @@ namespace TE.FileVerification
         /// Gets all the files in the path.
         /// </summary>
         public ConcurrentQueue<string>? Files { get; private set; }
+
+        /// <summary>
+        /// Gets the exclusions list.
+        /// </summary>
+        public Exclusions? Exclusions { get; private set; }
 
         /// <summary>
         /// Gets the number of files.
@@ -72,7 +78,7 @@ namespace TE.FileVerification
         /// <exception cref="InvalidOperationException">
         /// Thrown if the directory of the path could not be determined.
         /// </exception>
-        public PathInfo(string path, string checksumFileName)
+        public PathInfo(string path, string checksumFileName, Exclusions? exclusions)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
             {
@@ -112,6 +118,8 @@ namespace TE.FileVerification
                     Logger.WriteLine($"The checksum file name '{checksumFileName}' contains invalid characters. The checksum file name '{_checksumFileName}' will be used instead.");
                 }
             }
+
+            Exclusions = exclusions;
         }
 
         /// <summary>
@@ -175,6 +183,16 @@ namespace TE.FileVerification
                     return;
                 }
 
+                // Check to see if the file/folder is to be excluded from
+                // having the checksum generated
+                if (Exclusions != null)
+                {
+                    if (Exclusions.Exclude(file))
+                    {
+                        return;
+                    }
+                }
+
                 // Get the file directory so it can be used to find the
                 // checksum file for the directory
                 string? fileDir = Path.GetDirectoryName(file);
@@ -183,7 +201,7 @@ namespace TE.FileVerification
                     Logger.WriteLine($"Could not get the directory from '{file}'.");
                     return;
                 }
-
+                
                 // Find the checksum file for the directory containing the file
                 ChecksumFile? checksumFile = 
                     ChecksumFileInfo.FirstOrDefault(

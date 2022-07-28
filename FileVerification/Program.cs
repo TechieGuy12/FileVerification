@@ -178,10 +178,15 @@ namespace TE.FileVerification
                 {
                     // Read the settings file if one was provided as an argument
                     Settings? settings = null;
+                    Exclusions? exclusions = null;
                     if (!string.IsNullOrWhiteSpace(settingsFile))
                     {
                         ISettingsFile xmlFile = new XmlFile(settingsFile);
                         settings = xmlFile.Read();
+                        if (settings != null)
+                        {
+                            exclusions = settings.Exclusions;
+                        }
                     }
 
                     Logger.WriteLine("--------------------------------------------------------------------------------");
@@ -190,7 +195,7 @@ namespace TE.FileVerification
                     Logger.WriteLine($"Threads:             {threads}");
                     Logger.WriteLine("--------------------------------------------------------------------------------");
 
-                    PathInfo path = new PathInfo(file, checksumFile);
+                    PathInfo path = new PathInfo(file, checksumFile, exclusions);
                     Stopwatch watch = new Stopwatch();
                     watch.Start();
                     path.Crawl(!(bool)excludeSubDir);
