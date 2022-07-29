@@ -11,15 +11,6 @@ namespace TE.FileVerification.IO
     /// </summary>
     public abstract class MatchBase
     {
-        // The set of full path to the folders to ignore
-        private protected HashSet<string>? _folders;
-
-        // The set of full path to the paths to ignore
-        private protected HashSet<string>? _paths;
-
-        // Sets the flag indicating the ignore lists have been populated
-        private protected bool _initialized;
-
         /// <summary>
         /// Gets or sets the files node.
         /// </summary>
@@ -228,7 +219,7 @@ namespace TE.FileVerification.IO
         /// </returns>
         private protected bool PathMatch(string path)
         {
-            if (_paths == null || _paths.Count <= 0)
+            if (Paths == null || Paths.Path.Count <= 0)
             {
                 return false;
             }
@@ -239,7 +230,7 @@ namespace TE.FileVerification.IO
             }
 
             bool isMatch = false;
-            foreach (string aPath in _paths)
+            foreach (string aPath in Paths.Path)
             {
                 if (path.Contains(aPath, StringComparison.OrdinalIgnoreCase))
                 {
