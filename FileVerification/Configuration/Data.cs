@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
+using TE.FileVerification.Net;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     /// <summary>
     /// Contains the data used to send the request.
@@ -19,13 +20,13 @@ namespace TE.FileVerification.Configuration.Notifications
         /// Gets or sets the headers for the request.
         /// </summary>
         [XmlElement("headers")]
-        public Headers Headers { get; set; }
+        public Headers? Headers { get; set; }
 
         /// <summary>
         /// Gets or sets the body for the request.
         /// </summary>
         [XmlElement("body")]
-        public string Body { get; set; }
+        public string? Body { get; set; }
 
         /// <summary>
         /// Gets or sets the MIME type string value.
@@ -39,7 +40,7 @@ namespace TE.FileVerification.Configuration.Notifications
             }
             set
             {
-                _mimeType = (value == Request.JSON_NAME || value == Request.XML_NAME) ? value : Request.JSON_NAME;
+                _mimeType = value == Request.JSON_NAME || value == Request.XML_NAME ? value : Request.JSON_NAME;
             }
         }
 

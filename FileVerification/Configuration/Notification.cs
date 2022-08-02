@@ -7,25 +7,27 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 using System.Text.Json;
+using System.Globalization;
+using TE.FileVerification.Net;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     public class Notification
     {
         // The message to send with the request.
-        private StringBuilder _message;
+        private readonly StringBuilder _message;
 
         /// <summary>
         /// Gets or sets the URL of the request.
         /// </summary>
         [XmlElement("url")]
-        public string Url { get; set; }
+        public string? Url { get; set; }
 
         /// <summary>
         /// Gets the URI value of the string URL.
         /// </summary>
         [XmlIgnore]
-        public Uri Uri
+        public Uri? Uri
         {
             get
             {
@@ -46,12 +48,12 @@ namespace TE.FileVerification.Configuration.Notifications
                 }
             }
         }
-        
+
         /// <summary>
         /// Gets or sets the string representation of the request method.
         /// </summary>
         [XmlElement("method")]
-        public string MethodString { get; set; }
+        public string MethodString { get; set; } = "Post";
 
         /// <summary>
         /// Gets the request method.
@@ -69,7 +71,7 @@ namespace TE.FileVerification.Configuration.Notifications
 
                 try
                 {
-                    method = (HttpMethod)Enum.Parse(typeof(HttpMethod), MethodString.ToUpper(), true);
+                    method = (HttpMethod)Enum.Parse(typeof(HttpMethod), MethodString.ToUpper(CultureInfo.CurrentCulture), true);
                 }
                 catch (Exception ex)
                     when (ex is ArgumentNullException || ex is ArgumentException || ex is OverflowException)
@@ -85,7 +87,7 @@ namespace TE.FileVerification.Configuration.Notifications
         /// Gets or sets the data to send for the request.
         /// </summary>
         [XmlElement("data")]
-        public Data Data { get; set; }
+        public Data? Data { get; set; }
 
         /// <summary>
         /// Returns a value indicating if there is a message waiting to be sent
@@ -121,36 +123,44 @@ namespace TE.FileVerification.Configuration.Notifications
         /// </param>
         internal void QueueRequest(string message)
         {
-            //_message.Append(CleanMessage(message) + @"\n");
-            _message.Append(message);
+            _message.Append(CleanMessage(message) + @"\n");
         }
 
         /// <summary>
         /// Send the notification request.
         /// </summary>
-        /// <exception cref="NullReferenceException">
+        /// <exception cref="InvalidOperationException">
         /// Thrown when the URL is null or empty.
         /// </exception>
-        internal HttpResponseMessage Send()
+        internal Response? Send()
         {
             // If there isn't a message to be sent, then just return
-            if (_message?.Length <= 0)
+            if (_message == null || _message.Length <= 0)
             {
                 return null;
             }
 
-            if (Uri == null)
+            if (GetUri() == null)
             {
-                throw new NullReferenceException("The URL is null or empty.");
+                throw new InvalidOperationException("The URL is null or empty.");
             }
 
-            string content = Data.Body.Replace("[message]", cleanForJSON(_message.ToString()));
+            if (Data == null)
+            {
+                throw new InvalidOperationException("Data for the request was not provided.");
+            }
 
-            HttpResponseMessage response =
+            string content = string.Empty;
+            if (Data.Body != null)
+            {
+                content = Data.Body.Replace("[message]", _message.ToString(), StringComparison.OrdinalIgnoreCase);
+            }
+
+            Response response =
                 Request.Send(
                     Method,
-                    Uri,
-                    Data.Headers.HeaderList,
+                    GetUri(),
+                    Data.Headers,
                     content,
                     Data.MimeType);
 
@@ -161,37 +171,46 @@ namespace TE.FileVerification.Configuration.Notifications
         /// <summary>
         /// Send the notification request.
         /// </summary>
-        /// <exception cref="NullReferenceException">
+        /// <exception cref="InvalidOperationException">
         /// Thrown when the URL is null or empty.
         /// </exception>
-        internal async Task<HttpResponseMessage> SendAsync()
+        internal async Task<Response?> SendAsync()
         {
             // If there isn't a message to be sent, then just return
-            if (_message?.Length <= 0)
+            if (_message == null || _message.Length <= 0)
             {
                 return null;
             }
 
-            if (Uri == null)
+            if (GetUri() == null)
             {
-                throw new NullReferenceException("The URL is null or empty.");
+                throw new InvalidOperationException("The URL is null or empty.");
             }
-            
-            string content = Data.Body.Replace("[message]", _message.ToString());
 
-            HttpResponseMessage response =
+            if (Data == null)
+            {
+                throw new InvalidOperationException("Data for the request was not provided.");
+            }
+
+            string content = string.Empty;
+            if (Data.Body != null)
+            {
+                content = Data.Body.Replace("[message]", _message.ToString(), StringComparison.OrdinalIgnoreCase);
+            }
+
+            Response response =
                 await Request.SendAsync(
                     Method,
-                    Uri,
-                    Data.Headers.HeaderList,
+                    GetUri(),
+                    Data.Headers,
                     content,
-                    Data.MimeType);
+                    Data.MimeType).ConfigureAwait(false);
 
             _message.Clear();
-            return response;           
+            return response;
         }
 
-        public static string cleanForJSON(string s)
+        public static string CleanMessage(string s)
         {
             if (s == null || s.Length == 0)
             {
@@ -201,8 +220,8 @@ namespace TE.FileVerification.Configuration.Notifications
             char c = '\0';
             int i;
             int len = s.Length;
-            StringBuilder sb = new StringBuilder(len + 4);
-            String t;
+            StringBuilder sb = new(len + 4);
+            string t;
 
             for (i = 0; i < len; i += 1)
             {
@@ -236,8 +255,8 @@ namespace TE.FileVerification.Configuration.Notifications
                     default:
                         if (c < ' ')
                         {
-                            t = "000" + String.Format("X", c);
-                            sb.Append("\\u" + t.Substring(t.Length - 4));
+                            t = "000" + string.Format(CultureInfo.CurrentCulture, "{0:X}", c);
+                            sb.Append(string.Concat("\\u", t.AsSpan(t.Length - 4)));
                         }
                         else
                         {
@@ -247,6 +266,23 @@ namespace TE.FileVerification.Configuration.Notifications
                 }
             }
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// Gets the URI value of the string URL.
+        /// </summary>
+        /// <exception cref="UriFormatException">
+        /// Thrown if the URL is not in a valid format.
+        /// </exception>
+        private Uri GetUri()
+        {
+            if (string.IsNullOrWhiteSpace(Url))
+            {
+                throw new UriFormatException();
+            }
+
+            Uri uri = new(Url);
+            return uri;
         }
     }
 }

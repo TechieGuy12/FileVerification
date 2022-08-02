@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
 using System.Xml.Serialization;
 
 namespace TE.FileVerification.Configuration
@@ -14,9 +15,6 @@ namespace TE.FileVerification.Configuration
     /// </summary>
     public class XmlFile : ISettingsFile
     {
-        // The default configuration file name
-        const string DEFAULT_SETTINGS_FILE = "config.xml";
-
         // Full path to the settings XML file
         private readonly string? _fullPath;
 
@@ -33,41 +31,6 @@ namespace TE.FileVerification.Configuration
         }
 
         /// <summary>
-        /// Gets the folder path containing the settings file.
-        /// </summary>
-        /// <param name="path">
-        /// The folder path.
-        /// </param>
-        /// <returns>
-        /// The folder path of the files, otherwise null.
-        /// </returns>
-        private string? GetFolderPath(string? path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                try
-                {
-                    path = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule?.FileName);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"The folder name is null or empty. Couldn't get the current location. Reason: {ex.Message}");
-                    return null;
-                }
-            }
-
-            if (Directory.Exists(path))
-            {
-                return path;
-            }
-            else
-            {
-                Console.WriteLine("The folder does not exist.");
-                return null;
-            }
-        }
-
-        /// <summary>
         /// Gets the full path to the settings file.
         /// </summary>
         /// <param name="path">
@@ -76,7 +39,7 @@ namespace TE.FileVerification.Configuration
         /// <returns>
         /// The full path to the settings file, otherwise null.
         /// </returns>
-        private string? CheckFullPath(string path)
+        private static string? CheckFullPath(string path)
         {
             try
             {
@@ -125,8 +88,13 @@ namespace TE.FileVerification.Configuration
             try
             {
                 XmlSerializer serializer = new XmlSerializer(typeof(Settings));
-                using FileStream fs = new FileStream(_fullPath, FileMode.Open);
-                return (Settings?)serializer.Deserialize(fs);
+                using (FileStream fs = new FileStream(_fullPath, FileMode.Open))
+                {
+                    using (XmlReader reader = XmlReader.Create(fs))
+                    {
+                        return (Settings?)serializer.Deserialize(reader);
+                    }
+                }
             }
             catch (Exception ex)
             {

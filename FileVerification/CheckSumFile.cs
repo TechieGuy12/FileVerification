@@ -20,7 +20,7 @@ namespace TE.FileVerification
         /// <summary>
         /// The string representation of the hash algorithm.
         /// </summary>
-        HASH_ALGORITHM,
+        HASHALGORITHM,
         /// <summary>
         /// The hash of the file.
         /// </summary>
@@ -32,7 +32,7 @@ namespace TE.FileVerification
         /// <summary>
         /// The default checksum file name.
         /// </summary>
-        public const string DEFAULT_CHECKSUM_FILENAME = "__fv.txt";
+        public const string DEFAULTCHECKSUMFILENAME = "__fv.txt";
 
         /// <summary>
         /// Gets the directory where the checksum file is located.
@@ -138,7 +138,7 @@ namespace TE.FileVerification
                     HashInfo info =
                         new HashInfo(
                             fileName,
-                            values[(int)ChecksumFileLayout.HASH_ALGORITHM],
+                            values[(int)ChecksumFileLayout.HASHALGORITHM],
                             values[(int)ChecksumFileLayout.HASH]);
 
                     // Get the full path to the file to use as the key to make
@@ -285,8 +285,10 @@ namespace TE.FileVerification
             try
             {
                 // Write the file hash information to the checksum file
-                using StreamWriter sw = new StreamWriter(FullPath);
-                sw.Write(string.Join("", info));
+                using (StreamWriter sw = new StreamWriter(FullPath))
+                {
+                    sw.Write(string.Join("", info));
+                }
             }
             catch (DirectoryNotFoundException)
             {

@@ -5,14 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     public class Header
     {
         [XmlElement("name")]
-        public string Name { get; set; }
+        public string? Name { get; set; }
 
         [XmlElement("value")]
-        public string Value { get; set; }
+        public string? Value { get; set; }
     }
 }

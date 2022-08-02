@@ -6,15 +6,16 @@ using System.Text;
 using System.Timers;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
-using TE.FileVerification;
+using System.Collections.ObjectModel;
+using TE.FileVerification.Net;
 
-namespace TE.FileVerification.Configuration.Notifications
+namespace TE.FileVerification.Configuration
 {
     /// <summary>
     /// The notifications root node in the XML file.
     /// </summary>
     [XmlRoot("notifications")]
-    public class Notifications
+    public class Notifications : IDisposable
     {
         // The default wait time
         private const int DEFAULT_WAIT_TIME = 60000;
@@ -23,7 +24,10 @@ namespace TE.FileVerification.Configuration.Notifications
         private const int MIN_WAIT_TIME = 30000;
 
         // The timer
-        private Timer _timer;
+        private readonly Timer _timer;
+
+        // Flag indicating the class is disposed
+        private bool _disposed;
 
         /// <summary>
         /// Gets or sets the wait time between notification requests.
@@ -35,16 +39,49 @@ namespace TE.FileVerification.Configuration.Notifications
         /// Gets or sets the notifications list.
         /// </summary>
         [XmlElement("notification")]
-        public List<Notification> NotificationList { get; set; }
+        public Collection<Notification>? NotificationList { get; set; }
 
         /// <summary>
         /// Initializes an instance of the <see cref="Notifications"/> class.
         /// </summary>
         public Notifications()
-        {            
+        {
             _timer = new Timer(WaitTime);
             _timer.Elapsed += OnElapsed;
             _timer.Start();
+        }
+
+        /// <summary>
+        /// Releases all resources used by the class.
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Release all resources used by the class.
+        /// </summary>
+        /// <param name="disposing">
+        /// Indicates the whether the class is disposing.
+        /// </param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                if (_timer != null)
+                {
+                    _timer.Dispose();
+                }
+            }
+
+            _disposed = true;
         }
 
         /// <summary>
@@ -56,7 +93,7 @@ namespace TE.FileVerification.Configuration.Notifications
         /// <param name="e">
         /// The information associated witht he elapsed time.
         /// </param>
-        private async void OnElapsed(object source, ElapsedEventArgs e)
+        private async void OnElapsed(object? source, ElapsedEventArgs e)
         {
             // If there are no notifications, then stop the timer
             if (NotificationList == null || NotificationList.Count <= 0)
@@ -84,19 +121,15 @@ namespace TE.FileVerification.Configuration.Notifications
                 try
                 {
                     Logger.WriteLine($"Sending the request to {notification.Url}.");
-                    using (HttpResponseMessage response = await notification.SendAsync())
-                    {
-                        if (response == null)
-                        {
-                            continue;
-                        }
+                    Response? response =
+                        await notification.SendAsync().ConfigureAwait(false);
 
-                        using (HttpContent httpContent = response.Content)
-                        {
-                            string resultContent = await httpContent.ReadAsStringAsync();
-                            Logger.WriteLine($"Response: {response.StatusCode}. Content: {resultContent}");
-                        }
+                    if (response == null)
+                    {
+                        continue;
                     }
+
+                    Logger.WriteLine($"Response: {response.StatusCode}. Content: {response.Content}");
                 }
                 catch (AggregateException aex)
                 {
@@ -131,25 +164,26 @@ namespace TE.FileVerification.Configuration.Notifications
             }
 
             foreach (Notification notification in NotificationList)
-            {                
+            {
+                notification.QueueRequest(message);
+
+                // continue to the next notification
+                if (!notification.HasMessage)
+                {
+                    continue;
+                }
+
                 try
                 {
-                    notification.QueueRequest(message);
-
                     Logger.WriteLine($"Sending the request to {notification.Url}.");
-                    using (HttpResponseMessage response = notification.Send())
-                    {
-                        if (response == null)
-                        {
-                            continue;
-                        }
+                    Response? response = notification.Send();
 
-                        using (HttpContent httpContent = response.Content)
-                        {
-                            string resultContent = httpContent.ReadAsStringAsync().Result;
-                            Logger.WriteLine($"Response: {response.StatusCode}. Content: {resultContent}");
-                        }
+                    if (response == null)
+                    {
+                        continue;
                     }
+
+                    Logger.WriteLine($"Response: {response.StatusCode}. Content: {response.Content}");
                 }
                 catch (AggregateException aex)
                 {

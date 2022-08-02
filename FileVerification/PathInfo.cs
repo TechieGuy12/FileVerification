@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TE.FileVerification.Configuration;
 
 namespace TE.FileVerification
 {
@@ -33,6 +34,11 @@ namespace TE.FileVerification
         /// Gets all the files in the path.
         /// </summary>
         public ConcurrentQueue<string>? Files { get; private set; }
+
+        /// <summary>
+        /// Gets the exclusions list.
+        /// </summary>
+        public Exclusions? Exclusions { get; private set; }
 
         /// <summary>
         /// Gets the number of files.
@@ -72,7 +78,7 @@ namespace TE.FileVerification
         /// <exception cref="InvalidOperationException">
         /// Thrown if the directory of the path could not be determined.
         /// </exception>
-        public PathInfo(string path, string checksumFileName)
+        public PathInfo(string path, string checksumFileName, Exclusions? exclusions)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
             {
@@ -97,7 +103,7 @@ namespace TE.FileVerification
                 _directory = FullPath;
             }
 
-            _checksumFileName = ChecksumFile.DEFAULT_CHECKSUM_FILENAME;
+            _checksumFileName = ChecksumFile.DEFAULTCHECKSUMFILENAME;
 
             // If the checksum file name was specified, use the name, otherwise
             // keep the default name
@@ -112,6 +118,8 @@ namespace TE.FileVerification
                     Logger.WriteLine($"The checksum file name '{checksumFileName}' contains invalid characters. The checksum file name '{_checksumFileName}' will be used instead.");
                 }
             }
+
+            Exclusions = exclusions;
         }
 
         /// <summary>
@@ -144,7 +152,14 @@ namespace TE.FileVerification
         /// <summary>
         /// Check the hash values of the file against the stored hashes in the
         /// checksum files. If the file hashes aren't in the checksum files,
-        /// then add the file and its hash to the checksum files.
+        /// then add the file and its hash to the checksum files. 
+        /// 
+        /// After the files have been validated or added to the checksum file,
+        /// the search for missing files (files in the checksum file but no
+        /// longer exist on the file system) is done.
+        /// 
+        /// Once the two validations have been performed, the checksum files
+        /// are written to the file system.
         /// </summary>
         /// <param name="hashAlgorithm">
         /// The hash algorithm to use for files added to the checksum file.
@@ -155,6 +170,26 @@ namespace TE.FileVerification
         /// The number of threads to use to verify the files.
         /// </param>
         public void Check(HashAlgorithm hashAlgorithm, int threads)
+        {
+            CheckFiles(hashAlgorithm, threads);
+            CheckForMissingFiles(threads);
+            WriteChecksumFiles();
+        }
+
+        /// <summary>
+        /// Check the hash values of the file against the stored hashes in the
+        /// checksum files. If the file hashes aren't in the checksum files,
+        /// then add the file and its hash to the checksum files.
+        /// </summary>
+        /// <param name="hashAlgorithm">
+        /// The hash algorithm to use for files added to the checksum file.
+        /// Existing files will use the hash algorithm stored in the checksum
+        /// file.
+        /// </param>
+        /// <param name="threads">
+        /// The number of threads to use to verify the files.
+        /// </param>
+        private void CheckFiles(HashAlgorithm hashAlgorithm, int threads)
         {
             if (Files == null || ChecksumFileInfo == null)
             {
@@ -169,10 +204,20 @@ namespace TE.FileVerification
             ParallelOptions options = new ParallelOptions();
             options.MaxDegreeOfParallelism = threads;
             Parallel.ForEach(Files, options, file =>
-            {                
-                if (Path.GetFileName(file).Equals(_checksumFileName) || IsSystemFile(file))
+            {
+                if (Path.GetFileName(file).Equals(_checksumFileName, StringComparison.OrdinalIgnoreCase) || IsSystemFile(file))
                 {
                     return;
+                }
+
+                // Check to see if the file/folder is to be excluded from
+                // having the checksum generated
+                if (Exclusions != null)
+                {
+                    if (Exclusions.Exclude(file))
+                    {
+                        return;
+                    }
                 }
 
                 // Get the file directory so it can be used to find the
@@ -185,9 +230,9 @@ namespace TE.FileVerification
                 }
 
                 // Find the checksum file for the directory containing the file
-                ChecksumFile? checksumFile = 
+                ChecksumFile? checksumFile =
                     ChecksumFileInfo.FirstOrDefault(
-                        c => c.Key.Equals(fileDir)).Value;
+                        c => c.Key.Equals(fileDir, StringComparison.OrdinalIgnoreCase)).Value;
 
                 // A checksum file was found containing the file, so get the
                 // hash information for the file
@@ -204,10 +249,10 @@ namespace TE.FileVerification
                 {
                     // If no checksum file was located in the directory, create
                     // a new checksum file and then add it to the list
-                    checksumFile = 
+                    checksumFile =
                         new ChecksumFile
                             (Path.Combine(
-                                fileDir, 
+                                fileDir,
                                 _checksumFileName));
 
                     // If the new checksum fle could not be added, then another
@@ -218,7 +263,7 @@ namespace TE.FileVerification
                         // Find the checksum file for the directory containing the file
                         checksumFile =
                             ChecksumFileInfo.FirstOrDefault(
-                                c => c.Key.Equals(fileDir)).Value;
+                                c => c.Key.Equals(fileDir, StringComparison.OrdinalIgnoreCase)).Value;
 
                         if (checksumFile == null)
                         {
@@ -228,14 +273,56 @@ namespace TE.FileVerification
                     }
 
                     // Add the file to the checksum file
-                    checksumFile.Add(file, hashAlgorithm);                    
+                    checksumFile.Add(file, hashAlgorithm);
                 }
             });
+        }
 
-            // Write out each checksum file with the updated information
+        /// <summary>
+        /// Checks for files that are listed in the checksum file, but are no
+        /// longer available on the file system.
+        /// </summary>
+        /// <param name="threads">
+        /// The number of threads used to check for the existence of the files.
+        /// </param>
+        /// <remarks>
+        /// This method will just log a message for any file that no longer
+        /// exists on the file system. The file is not removed from the
+        /// checksum file.
+        /// </remarks>
+        private void CheckForMissingFiles(int threads)
+        {
+            if (ChecksumFileInfo == null)
+            {
+                return;
+            }
+
+            // Loop through each of the checksum file information so each file
+            // in each checksum file can be checked
             foreach (var keyPair in ChecksumFileInfo)
             {
-                keyPair.Value.Write();
+                // The checksum file information is store in the value of the
+                // dictionary
+                ChecksumFile file = keyPair.Value;
+
+                // Loop in parallel over the values in the checksum dictionary
+                ParallelOptions options = new ParallelOptions();
+                options.MaxDegreeOfParallelism = threads;
+                Parallel.ForEach(file.Checksums, options, pair =>
+                {
+                    // The full path to the file is stored as the key to the
+                    // dictionary
+                    string filePath = pair.Key;
+                    if (string.IsNullOrWhiteSpace(filePath))
+                    {
+                        return;
+                    }
+
+                    if (!File.Exists(filePath))
+                    {
+                        Logger.WriteLine($"The file '{filePath}' does not exist.");
+                    }
+                });
             }
         }
 
@@ -380,7 +467,7 @@ namespace TE.FileVerification
                 {
                     // Check if the file is the checksum file, and if it is,
                     // add it to the dictionary
-                    if (file.Name.Equals(_checksumFileName))
+                    if (file.Name.Equals(_checksumFileName, StringComparison.OrdinalIgnoreCase))
                     {
                         string? fileDir = file.DirectoryName;
                         if (!string.IsNullOrWhiteSpace(fileDir))
@@ -468,6 +555,24 @@ namespace TE.FileVerification
         {
             FileAttributes attributes = File.GetAttributes(file);
             return ((attributes & FileAttributes.System) == FileAttributes.System);
+        }
+
+        /// <summary>
+        /// Write out the checksum information for all the stored checksum
+        /// files.
+        /// </summary>
+        private void WriteChecksumFiles()
+        {
+            if (ChecksumFileInfo == null)
+            {
+                return;
+            }
+
+            // Write out each checksum file with the updated information
+            foreach (var keyPair in ChecksumFileInfo)
+            {
+                keyPair.Value.Write();
+            }
         }
     }
 }

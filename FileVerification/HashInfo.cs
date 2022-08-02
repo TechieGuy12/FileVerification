@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 using Cryptography = System.Security.Cryptography;
 using System.IO;
+using System.Globalization;
+using System.Timers;
 
 namespace TE.FileVerification
 {
@@ -91,40 +93,15 @@ namespace TE.FileVerification
         /// A parameter is null or empty.
         /// </exception>
         public HashInfo(string filePath, string algorithm, string hash)
-            : this(filePath, algorithm)        
+            : this(filePath)        
         {
             if (hash == null || string.IsNullOrWhiteSpace(hash))
             {
                 throw new ArgumentNullException(nameof(hash));
             }
 
-            Hash = hash;
-        }
-
-        /// <summary>
-        /// Initializes an instance of the <see cref="HashInfo"/> class when
-        /// provided with the full path to the file, and the string
-        /// representation of the hash algorithm.
-        /// </summary>
-        /// <param name="filePath">
-        /// The full path, including the directory, to the file.
-        /// </param>
-        /// <param name="algorithm">
-        /// The string representation of the hash algorithm.
-        /// </param>
-        /// <exception cref="ArgumentNullException">
-        /// A parameter is null or empty.
-        /// </exception>
-        public HashInfo(string filePath, string algorithm) 
-            : this(filePath)
-        {           
-            if (algorithm == null || string.IsNullOrWhiteSpace(algorithm))
-            {
-                throw new ArgumentNullException(nameof(algorithm));
-            }
-
             Algorithm = GetAlgorithm(algorithm);
-            Hash = GetFileHash(FilePath, Algorithm);
+            Hash = hash;
         }
 
         /// <summary>
@@ -158,15 +135,15 @@ namespace TE.FileVerification
         /// </returns>
         private static HashAlgorithm GetAlgorithm(string algorithm)
         {            
-            if (string.Compare(algorithm, "md5", true) == 0)
+            if (string.Equals(algorithm, "md5", StringComparison.OrdinalIgnoreCase))
             {
                 return HashAlgorithm.MD5;
             }
-            else if (string.Compare(algorithm, "sha1", true) == 0)
+            else if (string.Equals(algorithm, "sha1", StringComparison.OrdinalIgnoreCase))
             {
                 return HashAlgorithm.SHA1;
             }
-            else if (string.Compare(algorithm, "sha512", true) == 0)
+            else if (string.Equals(algorithm, "sha512", StringComparison.OrdinalIgnoreCase))
             {
                 return HashAlgorithm.SHA512;
             }
@@ -196,7 +173,6 @@ namespace TE.FileVerification
                 return null;
             }
 
-            //int maxSize = 64 * Kilobyte; 
             int maxSize = Megabyte;
 
             Cryptography.HashAlgorithm? hashAlgorithm = null;
@@ -227,25 +203,32 @@ namespace TE.FileVerification
 
                 try
                 {
-                    using var stream =
-                    //new FileStream(
-                    //    file,
-                    //    FileMode.Open,
-                    //    FileAccess.Read,
-                    //    FileShare.None);
-                    new FileStream(
-                        file,
-                        FileMode.Open,
-                        FileAccess.Read,
-                        FileShare.None,
-                        maxSize);
+                    byte[] hash;
+                    using (var stream =
+                        new FileStream(
+                            file,
+                            FileMode.Open,
+                            FileAccess.Read,
+                            FileShare.None,
+                            maxSize))
+                    {
+                        hash = hashAlgorithm.ComputeHash(stream);
+                    }
+                    // The following command is typically considered a no-no, but
+                    // since the above filestream object can be created for
+                    // hundreds or thousands of times - depending on the number
+                    // of files that will have a hash generated - a lot of 
+                    // memory can be consumed. By running the garbage collection
+                    // manually, this greatly reduces the amount of memory that
+                    // is used by the app, and so far, no real performance hit
+                    // has been detected
+                    GC.Collect();
 
-                    var hash = hashAlgorithm.ComputeHash(stream);
-                    return BitConverter.ToString(hash).Replace("-", "");
+                    return BitConverter.ToString(hash).Replace("-", "", StringComparison.OrdinalIgnoreCase);
                 }
-                catch
+                catch (Exception ex)
                 {
-
+                    Logger.WriteLine($"Couldn't create hash. Reason: {ex.Message}.");
                     return null;
                 }
             }
@@ -281,7 +264,7 @@ namespace TE.FileVerification
                 return string.IsNullOrWhiteSpace(hash);
             }
 
-            return Hash.Equals(hash);
+            return Hash.Equals(hash, StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -292,7 +275,7 @@ namespace TE.FileVerification
         /// </returns>
         public override string ToString()
         {
-            return $"{FileName}{Separator}{Algorithm.ToString().ToLower()}{Separator}{Hash}";
+            return $"{FileName}{Separator}{Algorithm.ToString().ToLower(CultureInfo.CurrentCulture)}{Separator}{Hash}";
         }
     }
 }
