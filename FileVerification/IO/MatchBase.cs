@@ -116,8 +116,7 @@ namespace TE.FileVerification.IO
                 foreach (FileAttributes attribute in Attributes.Attribute)
                 {
                     if (fileAttributes.HasFlag(attribute))
-                    {
-                        Logger.WriteLine($"{FilterTypeName}: The path '{path}' has the attribute '{attribute}'.");
+                    {                        
                         hasAttribute = true;
                         break;
                     }
@@ -164,8 +163,7 @@ namespace TE.FileVerification.IO
             {
                 isMatch = fileName.IsMatch(name);
                 if (isMatch)
-                {
-                    Logger.WriteLine($"{FilterTypeName}: The match pattern '{fileName.Pattern}' is a match for file {name}.");
+                {                    
                     break;
                 }
             }
@@ -199,8 +197,7 @@ namespace TE.FileVerification.IO
             {
                 isMatch = folder.IsMatch(path);
                 if (isMatch)
-                {
-                    Logger.WriteLine($"{FilterTypeName}: The match pattern '{folder.Pattern}' is a match for folder '{path}'.");
+                {                    
                     break;
                 }
             }
@@ -233,8 +230,7 @@ namespace TE.FileVerification.IO
             foreach (string aPath in Paths.Path)
             {
                 if (path.Contains(aPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    Logger.WriteLine($"{FilterTypeName}: The path '{path}' contains the path '{aPath}'.");
+                {                    
                     isMatch = true;
                     break;
                 }
