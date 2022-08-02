@@ -6,9 +6,9 @@
     <AssemblyName>fv</AssemblyName>
     <RootNamespace>TE.FileVerification</RootNamespace>
     <Nullable>enable</Nullable>
-    <FileVersion>1.1.1.0</FileVersion>
-    <AssemblyVersion>1.1.1.0</AssemblyVersion>
-    <Version>1.1.0</Version>
+    <FileVersion>1.2.0.0</FileVersion>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <Version>1.2.0</Version>
     <AnalysisLevel>latest-all</AnalysisLevel>
   </PropertyGroup>
 
