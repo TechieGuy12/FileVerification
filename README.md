@@ -8,7 +8,7 @@ The checksums are stored in a text file in the same directory as the files. This
 
 File Verification includes the following:
 
-**Generate MD5, SHA1, SHA256 or SHA512 hash value.** Specific which hash algorithm to use for all files in a directory or subdirectory.
+**Generate MD5, SHA1, SHA256 or SHA512 hash value.** Specify which hash algorithm to use for all files in a directory or subdirectory.
 
 **Exclude specific files or folders.** Files and folders can be excluded from having their checksum computed.
 
