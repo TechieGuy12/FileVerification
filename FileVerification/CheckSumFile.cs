@@ -247,6 +247,11 @@ namespace TE.FileVerification
                     return false;
                 }
 
+                if (string.IsNullOrWhiteSpace(hashInfo.Hash))
+                {
+                    hashInfo.Hash = hash;
+                }
+
                 return hashInfo.IsHashEqual(hash);
             }
             else

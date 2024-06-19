@@ -36,7 +36,7 @@ namespace TE.FileVerification
         /// <summary>
         /// Gets the hash associated with the file.
         /// </summary>
-        public string? Hash { get; private set; }
+        public string? Hash { get; internal set; }
 
         /// <summary>
         /// Gets the full path to the file.
@@ -95,11 +95,6 @@ namespace TE.FileVerification
         public HashInfo(string filePath, string algorithm, string hash)
             : this(filePath)        
         {
-            if (hash == null || string.IsNullOrWhiteSpace(hash))
-            {
-                throw new ArgumentNullException(nameof(hash));
-            }
-
             Algorithm = GetAlgorithm(algorithm);
             Hash = hash;
         }
