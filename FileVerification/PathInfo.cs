@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 using TE.FileVerification.Configuration;
@@ -20,6 +21,9 @@ namespace TE.FileVerification
 
         // The name of the checksum files
         private readonly string _checksumFileName;
+
+        // Flag indicating that a file can be removed from the checksum file
+        private readonly bool _allowRemove;
 
         // A queue of tasks used to crawl the directory tree
         private readonly ConcurrentQueue<Task> _tasks = 
@@ -78,19 +82,20 @@ namespace TE.FileVerification
         /// <exception cref="InvalidOperationException">
         /// Thrown if the directory of the path could not be determined.
         /// </exception>
-        public PathInfo(string path, string checksumFileName, Exclusions? exclusions)
+        public PathInfo(string path, string checksumFileName, Exclusions? exclusions, bool allowRemove)
         {
             if (path == null || string.IsNullOrWhiteSpace(path))
             {
                 throw new ArgumentNullException(path);
             }
 
+            _allowRemove = allowRemove;
             FullPath = path;
 
             // Check to see if the full path points to a file rather than a
             // directory, and if it does, then extract and store the directory
             // name
-            if (IsFile(FullPath))
+            if (IsFile(FullPath, _allowRemove))
             {
                 _directory = Path.GetDirectoryName(FullPath);
                 if (string.IsNullOrWhiteSpace(_directory))
@@ -102,7 +107,7 @@ namespace TE.FileVerification
             {
                 _directory = FullPath;
             }
-
+            
             _checksumFileName = ChecksumFile.DEFAULTCHECKSUMFILENAME;
 
             // If the checksum file name was specified, use the name, otherwise
@@ -132,14 +137,14 @@ namespace TE.FileVerification
         {
             
             // If the path does not exist, then just return null
-            if (!Exists())
+            if (!Exists() && !_allowRemove)
             {
                 return;
             }
             
             // If the path is a file, then just return a string array with the
             // path value as there is no directory to be crawled
-            if (IsFile(FullPath))
+            if (IsFile(FullPath, _allowRemove))
             {
                 CrawlDirectory();                              
             }
@@ -205,6 +210,11 @@ namespace TE.FileVerification
             options.MaxDegreeOfParallelism = threads;
             Parallel.ForEach(Files, options, file =>
             {
+                if (_allowRemove && !File.Exists(file))
+                {
+                    return;
+                }
+
                 if (Path.GetFileName(file).Equals(_checksumFileName, StringComparison.OrdinalIgnoreCase) || IsSystemFile(file))
                 {
                     return;
@@ -320,7 +330,24 @@ namespace TE.FileVerification
 
                     if (!File.Exists(filePath))
                     {
-                        Logger.WriteLine($"The file '{filePath}' does not exist.");
+                        // If the remove missing option was specified, remove
+                        // the missing file from the checksum file
+                        if (_allowRemove)
+                        {
+                            HashInfo? value;
+                            if (file.Checksums.TryRemove(pair.Key, out value))
+                            {
+                                Logger.WriteLine($"The file '{filePath}' was removed from the checksum file.");
+                            }
+                            else
+                            {
+                                Logger.WriteLine($"The file '{filePath}' could not be removed from the checksum file.");
+                            }
+                        }
+                        else
+                        {
+                            Logger.WriteLine($"The file '{filePath}' does not exist.");
+                        }                        
                     }
                 });
             }
@@ -355,7 +382,7 @@ namespace TE.FileVerification
             {
                 return;
             }
-
+            
             DirectoryInfo? dir = null;
             try
             {
@@ -372,7 +399,7 @@ namespace TE.FileVerification
                     ChecksumFileInfo.TryAdd(_directory, new ChecksumFile(checksumFile.FullName));
                 }
 
-                Files.Enqueue(FullPath);
+                Files.Enqueue(FullPath);                
             }
             catch (Exception ex)
                 when (ex is ArgumentNullException || ex is ArgumentOutOfRangeException || ex is DirectoryNotFoundException || ex is System.Security.SecurityException)
@@ -517,7 +544,7 @@ namespace TE.FileVerification
         /// </returns>
         public bool Exists()
         {
-            return IsDirectory(FullPath) || IsFile(FullPath);
+            return IsDirectory(FullPath) || IsFile(FullPath, _allowRemove);
         }
 
         /// <summary>
@@ -537,8 +564,16 @@ namespace TE.FileVerification
         /// <returns>
         /// <c>true</c> if the path is a valid file, othersize <c>false</c>.
         /// </returns>
-        public static bool IsFile(string path)
+        public static bool IsFile(string path, bool checkMissingFile)
         {
+            // Perform a check on the path for a file that may not exist
+            // by comparing if it is a directory as a file existence
+            // check would fail
+            if (checkMissingFile)
+            {
+                return !Directory.Exists(path);
+            }
+
             return File.Exists(path);
         }
 

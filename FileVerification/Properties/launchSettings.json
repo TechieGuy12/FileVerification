@@ -1,7 +1,8 @@
 {
   "profiles": {
     "FileVerification": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "-f \"C:\\Temp2\\yt-dlp.conf\" -sf C:\\Tools\\fv\\config.xml"
     }
   }
 }

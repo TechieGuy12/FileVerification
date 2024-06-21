@@ -244,6 +244,7 @@ namespace TE.FileVerification
             // Read the settings file if one was provided as an argument
             Settings? settings = null;
             Exclusions? exclusions = null;
+            bool allowRemove = false;
             if (!string.IsNullOrWhiteSpace(settingsFile))
             {
                 ISettingsFile xmlFile = new XmlFile(settingsFile);
@@ -251,6 +252,10 @@ namespace TE.FileVerification
                 if (settings != null)
                 {
                     exclusions = settings.Exclusions;
+                    if (settings.AllowRemove != null)
+                    {
+                        allowRemove = (bool)settings.AllowRemove;
+                    }
                 }
             }
 
@@ -260,7 +265,7 @@ namespace TE.FileVerification
             Logger.WriteLine($"Threads:             {threads}");
             Logger.WriteLine("--------------------------------------------------------------------------------");
 
-            PathInfo path = new PathInfo(file, checksumFile, exclusions);
+            PathInfo path = new PathInfo(file, checksumFile, exclusions, allowRemove);
             Stopwatch watch = new Stopwatch();
             watch.Start();
             path.Crawl(!(bool)excludeSubDir);
@@ -307,7 +312,7 @@ namespace TE.FileVerification
         /// </returns>
         private static int GetFileChecksum(string file, HashAlgorithm algorithm, bool hashOnlyOption, string providedHash)
         {
-            if (!PathInfo.IsFile(file))
+            if (!PathInfo.IsFile(file, false))
             {
                 Logger.WriteLine($"The file '{file}' is not a valid file.");
                 return ERROR_NOT_FILE;
