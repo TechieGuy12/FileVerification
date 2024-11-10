@@ -239,9 +239,12 @@ namespace TE.FileVerification
                 }
             }
 
-            // Overwrite any allow remove settings if the removeFile option was
-            // explicitly provided
-            allowRemove = removeFile;
+            if (removeFile)
+            {
+                // Overwrite any allow remove settings if the removeFile option was
+                // explicitly provided
+                allowRemove = removeFile;
+            }
 
             Logger.WriteLine("--------------------------------------------------------------------------------");
             Logger.WriteLine($"Folder/File:         {file}");
