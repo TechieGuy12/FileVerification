@@ -91,36 +91,26 @@ namespace TE.FileVerification
             );
             rootCommand.AddOption(settingsFileOption);
 
-            rootCommand.SetHandler(
-            (
-                fileOptionValue,
-                checksumFileOptionValue,
-                excludeSubDirOptionValue,
-                algorithmOptionValue,
-                hashOptionValue,
-                getHashOnlyOptionValue,
-                threadsOptionValue,
-                settingsFileOptionValue
-            ) =>
+            var removeFileOption = new Option<bool>(
+                aliases: new string[] { "--remove", "-r" },
+                description: "Remove missing files from checksum file."
+            );
+            rootCommand.AddOption(removeFileOption);
+
+            rootCommand.SetHandler((arguments) =>
                 {
-                    Run(
-                        fileOptionValue,
-                        checksumFileOptionValue,
-                        excludeSubDirOptionValue,
-                        algorithmOptionValue,
-                        hashOptionValue,
-                        getHashOnlyOptionValue,
-                        threadsOptionValue,
-                        settingsFileOptionValue);
+                    Run(arguments);
                 },
-                fileOption,
-                checksumFileOption,
-                excludeSubDirOption,
-                algorithmOption,
-                hashOption,
-                getHashOnlyOption,
-                threadsOption,
-                settingsFileOption
+                new ArgumentsBinder(
+                    fileOption,
+                    checksumFileOption,
+                    excludeSubDirOption,
+                    algorithmOption,
+                    hashOption,
+                    getHashOnlyOption,
+                    threadsOption,
+                    settingsFileOption,
+                    removeFileOption)
             );
             return rootCommand.Invoke(args);
         }
@@ -132,74 +122,63 @@ namespace TE.FileVerification
         /// <param name="algorithm"></param>
         /// <param name="settingsFile"></param>
         /// <returns></returns>
-        static int Run(
-            string? file,
-            string? checksumFile,
-            bool? excludeSubDir,
-            HashAlgorithm? algorithm,
-            string hashOption,
-            bool hashOnlyOption,
-            int? threads,
-            string? settingsFile)
+        static int Run(Arguments arguments)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(file))
+                if (string.IsNullOrWhiteSpace(arguments.File))
                 {
                     Logger.WriteLine("The file or folder was not specified.");
                     return ERROR;
                 }
 
-                if (checksumFile == null || string.IsNullOrEmpty(checksumFile))
+                if (arguments.ChecksumFile == null || string.IsNullOrEmpty(arguments.ChecksumFile))
                 {
-                    checksumFile = ChecksumFile.DEFAULTCHECKSUMFILENAME;
+                    arguments.ChecksumFile = ChecksumFile.DEFAULTCHECKSUMFILENAME;
                 }
 
-                if (algorithm == null)
+                if (arguments.Threads == null || arguments.Threads == default(int))
                 {
-                    algorithm = HashAlgorithm.SHA256;
+                    arguments.Threads = Environment.ProcessorCount;
                 }
-
-                if (excludeSubDir == null)
+                else if (arguments.Threads <= 0)
                 {
-                    excludeSubDir = false;
-                }
-
-                if (threads == null || threads == default(int))
-                {
-                    threads = Environment.ProcessorCount;
-                }
-                else if (threads <= 0)
-                {
-                    threads = 1;
+                    arguments.Threads = 1;
                 }
 
                 // Trim the double-quote from the path, since it can cause an
                 // issue if the path ends with a slash ('\'), because the code
                 // will interpret the slash and double-quote as an escape
                 // character for the double quote ('\"' to '"')
-                file = file.Trim('"');
+                arguments.File = arguments.File.Trim('"');
 
                 // If the hash option has not been specified, or the hash only
-                // option is false then continue with cralwing the directory to
+                // option is false then continue with crawling the directory to
                 // generate and verify the hashes of the files
-                if (string.IsNullOrWhiteSpace(hashOption) && !hashOnlyOption)
+                if (string.IsNullOrWhiteSpace(arguments.Hash) && !arguments.HashOnly)
                 {
                     return GetChecksums(
-                        file,
-                        checksumFile,
-                        (HashAlgorithm)algorithm,
-                        (int)threads,
-                        (bool)excludeSubDir,
-                        settingsFile);
+                        arguments.File,
+                        arguments.ChecksumFile,
+                        arguments.Algorithm,
+                        (int)arguments.Threads,
+                        arguments.ExcludeSubDir,
+                        arguments.SettingsFile,
+                        arguments.RemoveFile);
                 }
                 else
                 {
+                    if (arguments.Hash == null)
+                    {
+                        Logger.WriteLine("The hash was not provided.");
+                        return ERROR;
+                    }
+
                     return GetFileChecksum(
-                        file,
-                        (HashAlgorithm)algorithm,
-                        hashOnlyOption,
-                        hashOption);
+                        arguments.File,
+                        arguments.Algorithm,
+                        arguments.HashOnly,
+                        arguments.Hash);
                 }
             }
             catch (Exception ex)
@@ -239,7 +218,8 @@ namespace TE.FileVerification
             HashAlgorithm algorithm,
             int threads,
             bool excludeSubDir,
-            string? settingsFile)
+            string? settingsFile,
+            bool removeFile)
         {
             // Read the settings file if one was provided as an argument
             Settings? settings = null;
@@ -257,6 +237,13 @@ namespace TE.FileVerification
                         allowRemove = (bool)settings.AllowRemove;
                     }
                 }
+            }
+
+            if (removeFile)
+            {
+                // Overwrite any allow remove settings if the removeFile option was
+                // explicitly provided
+                allowRemove = removeFile;
             }
 
             Logger.WriteLine("--------------------------------------------------------------------------------");
